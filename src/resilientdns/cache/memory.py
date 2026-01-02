@@ -3,6 +3,8 @@ from dataclasses import dataclass
 
 from dnslib import RCODE, DNSRecord
 
+from resilientdns.metrics import Metrics
+
 
 @dataclass(frozen=True)
 class CacheConfig:
@@ -27,8 +29,9 @@ class MemoryDnsCache:
     Stores full wire response bytes.
     """
 
-    def __init__(self, config: CacheConfig):
+    def __init__(self, config: CacheConfig, metrics: Metrics | None = None):
         self.config = config
+        self.metrics = metrics
         self._store: dict[tuple[str, int], CacheEntry] = {}
 
     def get_fresh(self, key: tuple[str, int]) -> bytes | None:
@@ -37,6 +40,7 @@ class MemoryDnsCache:
             return None
         now = time.time()
         if now <= e.expires_at:
+            self._count_negative(e)
             return e.response_wire
         return None
 
@@ -46,6 +50,7 @@ class MemoryDnsCache:
             return None
         now = time.time()
         if e.expires_at < now <= e.stale_until:
+            self._count_negative(e)
             return e.response_wire
         return None
 
@@ -64,6 +69,10 @@ class MemoryDnsCache:
             stale_until=stale_until,
             rcode=response.header.rcode,
         )
+
+    def _count_negative(self, entry: CacheEntry) -> None:
+        if self.metrics and entry.rcode != RCODE.NOERROR:
+            self.metrics.inc("negative_cache_hit_total")
 
     def _compute_ttl_seconds(self, resp: DNSRecord) -> int:
         """

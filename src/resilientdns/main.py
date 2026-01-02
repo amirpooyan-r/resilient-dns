@@ -5,6 +5,7 @@ import logging
 from resilientdns.cache.memory import CacheConfig, MemoryDnsCache
 from resilientdns.dns.handler import DnsHandler
 from resilientdns.dns.server import UdpDnsServer, UdpServerConfig
+from resilientdns.metrics import Metrics
 from resilientdns.upstream.udp_forwarder import (
     UdpUpstreamForwarder,
     UpstreamUdpConfig,
@@ -20,18 +21,21 @@ def _setup_logging(verbose: bool) -> None:
 
 
 async def _run(args) -> None:
+    metrics = Metrics()
     upstream = UdpUpstreamForwarder(
         UpstreamUdpConfig(
             host=args.upstream_host, port=args.upstream_port, timeout_s=args.upstream_timeout
-        )
+        ),
+        metrics=metrics,
     )
     cache = MemoryDnsCache(
         CacheConfig(
             serve_stale_max_s=args.serve_stale_max,
             negative_ttl_s=args.negative_ttl,
-        )
+        ),
+        metrics=metrics,
     )
-    handler = DnsHandler(upstream=upstream, cache=cache)
+    handler = DnsHandler(upstream=upstream, cache=cache, metrics=metrics)
     server = UdpDnsServer(
         UdpServerConfig(host=args.listen_host, port=args.listen_port), handler=handler
     )

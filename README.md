@@ -6,68 +6,7 @@
 It aims to provide correct, resilient DNS resolution for local networks
 while minimizing upstream dependencies and unnecessary HTTPS traffic.
 
----
-
-## Motivation
-
-In some regions and network conditions, DNS resolution is unreliable due to:
-
-- Packet loss and unstable UDP/TCP DNS
-- DNS hijacking or tampering
-- Intermittent or degraded HTTPS connectivity
-- Partial or unreliable HTTP/2 support
-- Legacy devices (routers, TVs, IoT, embedded systems) that do not support DNS-over-HTTPS (DoH)
-
-While DoH improves security and integrity, many environments cannot rely on
-stable or efficient HTTPS connections, and aggressive prefetching can make
-things worse on slow links.
-
-**ResilientDNS** focuses on *practical resilience* rather than ideal conditions.
-
----
-
-## Project Goals
-
-ResilientDNS is designed to:
-
-- Accept **standard DNS (UDP/TCP)** queries from LAN devices
-- Provide a **smart local DNS cache**
-  - TTL-aware positive caching
-  - Negative caching (NXDOMAIN / NODATA)
-  - Serve-stale behavior for resilience
-- Reduce upstream dependency using:
-  - Controlled, budgeted prefetch
-  - Request deduplication
-  - Batched upstream resolution
-- Work reliably over **HTTP/1.1**
-  - No hard dependency on HTTP/2
-- Remain protocol-correct and transparent to clients
-
----
-
-## Non-Goals
-
-This project explicitly does **not** aim to:
-
-- Circumvent censorship or filtering
-- Provide anonymity or traffic obfuscation
-- Break DNS protocol behavior on the LAN side
-- Act as a VPN, proxy, or tunneling solution
-- Enable illegal or unethical use cases
-
-ResilientDNS focuses on **reliability, correctness, and performance**.
-
----
-
-## High-Level Architecture
-
-# ResilientDNS
-
-**ResilientDNS** is an open-source DNS cache and forwarder designed for
-**unreliable, high-latency, and low-quality network environments**.
-
-It aims to provide correct, resilient DNS resolution for local networks
-while minimizing upstream dependencies and unnecessary HTTPS traffic.
+Docs: https://amirpooyan-r.github.io/resilient-dns/
 
 ---
 
@@ -93,7 +32,7 @@ things worse on slow links.
 
 ResilientDNS is designed to:
 
-- Accept **standard DNS (UDP/TCP)** queries from LAN devices
+- Accept **standard DNS** queries from LAN devices (UDP today; TCP planned)
 - Provide a **smart local DNS cache**
   - TTL-aware positive caching
   - Negative caching (NXDOMAIN / NODATA)
@@ -105,6 +44,39 @@ ResilientDNS is designed to:
 - Work reliably over **HTTP/1.1**
   - No hard dependency on HTTP/2
 - Remain protocol-correct and transparent to clients
+
+---
+
+## Key Behaviors (Implemented)
+
+- TTL-aware caching
+- Negative caching (NXDOMAIN / NODATA)
+- Serve-stale support
+- Stale-while-revalidate (SWR)
+- SingleFlight deduplication (misses + refresh)
+- Lightweight in-process metrics counters
+
+---
+
+## Quickstart (Local)
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -e .[dev]  # or: pip install -e .
+```
+
+Run the server:
+
+```bash
+resilientdns --listen-port 5353
+```
+
+Test a query:
+
+```bash
+dig @127.0.0.1 -p 5353 example.com A
+```
 
 ---
 

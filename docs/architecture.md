@@ -16,3 +16,23 @@ flowchart LR
   B -->|HTTPS batch| C[Remote Gateway]
   C -->|DoH| D[Upstream Resolver]
 ```
+
+## Cache
+
+The cache is TTL-aware with negative caching and serve-stale support. This keeps
+responses available during upstream failures while respecting DNS TTLs.
+
+## SWR + SingleFlight
+
+Stale-while-revalidate serves stale entries immediately and refreshes in the
+background. SingleFlight deduplicates concurrent misses and refreshes.
+
+## Observability
+
+ResilientDNS is logs-first and exposes lightweight counters. See
+[Observability](observability.md) for details.
+
+## Failure Modes
+
+Upstream timeouts and errors are handled with serve-stale when possible, or
+`SERVFAIL` otherwise. See [Failure Modes](failure-modes.md).

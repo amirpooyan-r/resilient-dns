@@ -2,6 +2,8 @@ import asyncio
 from collections.abc import Awaitable, Callable, Hashable
 from typing import TypeVar
 
+from resilientdns.metrics import Metrics
+
 T = TypeVar("T")
 
 
@@ -12,7 +14,8 @@ class SingleFlight:
     The task is removed when it completes (success, error, or cancel).
     """
 
-    def __init__(self) -> None:
+    def __init__(self, metrics: Metrics | None = None) -> None:
+        self.metrics = metrics
         self._lock = asyncio.Lock()
         self._tasks: dict[Hashable, asyncio.Task] = {}
 
@@ -22,6 +25,8 @@ class SingleFlight:
         async with self._lock:
             existing = self._tasks.get(key)
             if existing is not None and not existing.done():
+                if self.metrics:
+                    self.metrics.inc("singleflight_dedup_total")
                 return existing, False
 
             task = asyncio.create_task(factory())

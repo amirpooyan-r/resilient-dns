@@ -6,6 +6,7 @@ from dnslib import QTYPE, RCODE, DNSRecord
 
 from resilientdns.cache.memory import MemoryDnsCache
 from resilientdns.dns.singleflight import SingleFlight
+from resilientdns.metrics import Metrics
 from resilientdns.upstream.udp_forwarder import UdpUpstreamForwarder
 
 logger = logging.getLogger("resilientdns")
@@ -35,11 +36,13 @@ class DnsHandler:
         upstream: UdpUpstreamForwarder,
         cache: MemoryDnsCache,
         config: HandlerConfig | None = None,
+        metrics: Metrics | None = None,
     ):
         self.upstream = upstream
         self.cache = cache
         self.config = config or HandlerConfig()
-        self._sf = SingleFlight()
+        self.metrics = metrics
+        self._sf = SingleFlight(metrics=metrics)
 
     async def handle(self, request: DNSRecord, client_addr) -> DNSRecord:
         if not request.questions:
@@ -50,6 +53,9 @@ class DnsHandler:
         q = request.questions[0]
         qname = str(q.qname).rstrip(".").lower()
 
+        if self.metrics:
+            self.metrics.inc("queries_total")
+
         qtype_id, qtype_name = self._qtype_mapping(q.qtype)
         key: tuple[str, int] = (qname, qtype_id)
 
@@ -57,16 +63,23 @@ class DnsHandler:
         fresh = self.cache.get_fresh(key)
         if fresh:
             logger.info("CACHE HIT (fresh) %s %s", qname, qtype_name)
+            if self.metrics:
+                self.metrics.inc("cache_hit_fresh_total")
             return DNSRecord.parse(fresh)
 
         # 2) Stale cache => serve immediately and refresh in background
         stale = self.cache.get_stale(key)
         if stale:
             logger.info("CACHE HIT (stale) %s %s (refresh scheduled)", qname, qtype_name)
+            if self.metrics:
+                self.metrics.inc("cache_hit_stale_total")
             await self._schedule_refresh(key, qname, qtype_name)
             return DNSRecord.parse(stale)
 
         # 3) Cache miss => singleflight upstream resolve
+        if self.metrics:
+            self.metrics.inc("cache_miss_total")
+
         task, leader = await self._sf.get_or_create(
             key, lambda: self._resolve_upstream(request, key, qname, qtype_name)
         )
@@ -91,6 +104,8 @@ class DnsHandler:
         stale2 = self.cache.get_stale(key)
         if stale2:
             logger.warning("SERVE STALE (late) %s %s", qname, qtype_name)
+            if self.metrics:
+                self.metrics.inc("cache_hit_stale_total")
             await self._schedule_refresh(key, qname, qtype_name)
             return DNSRecord.parse(stale2)
 
@@ -130,6 +145,8 @@ class DnsHandler:
             ("refresh", key), lambda: self._refresh_once(key, qname, qtype_name)
         )
         if leader:
+            if self.metrics:
+                self.metrics.inc("swr_refresh_triggered_total")
             logger.info("REFRESH START %s %s", qname, qtype_name)
             asyncio.create_task(self._watch_refresh(task, qname, qtype_name))
 

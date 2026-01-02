@@ -22,18 +22,6 @@ theme:
 markdown_extensions:
   - admonition
   - pymdownx.details
-  - pymdownx.superfences
-  - pymdownx.highlight
-
-nav:
-  - Home: index.md
-  - Architecture: architecture.md
-  - Protocol: protocol.md
-  - Roadmap: roadmap.md
-
-markdown_extensions:
-  - admonition
-  - pymdownx.details
   - pymdownx.highlight
   - pymdownx.superfences:
       custom_fences:
@@ -41,6 +29,14 @@ markdown_extensions:
           class: mermaid
           format: !!python/name:pymdownx.superfences.fence_code_format
 
+nav:
+  - Home: index.md
+  - Architecture: architecture.md
+  - Observability: observability.md
+  - Failure Modes: failure-modes.md
+  - Gateway Protocol: protocol.md
+  - Roadmap: roadmap.md
+
 extra_javascript:
   - https://unpkg.com/mermaid@10/dist/mermaid.min.js
-  - js/mermaid-init.js
+  - javascripts/mermaid-init.js

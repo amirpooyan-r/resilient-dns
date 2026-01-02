@@ -15,13 +15,21 @@ Many environments suffer from:
 
 ResilientDNS focuses on correctness and resilience while minimizing upstream HTTPS traffic.
 
-## Key features (planned)
+## Implemented
 
-- TTL-aware positive caching and negative caching
+- UDP DNS listener
+- TTL-aware caching (positive + negative)
 - Serve-stale behavior for resilience
+- Stale-while-revalidate (SWR)
+- SingleFlight deduplication
+- Lightweight in-process metrics counters
+
+## Planned
+
 - Adaptive, budgeted prefetch for hot domains
-- Upstream request deduplication and batching
-- HTTP/1.1-friendly gateway communication
+- Upstream request batching via HTTP/1.1-friendly gateway
+- TCP support + truncation handling
+- Metrics endpoint
 
 ## Status
 
