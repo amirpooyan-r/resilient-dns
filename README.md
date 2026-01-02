@@ -1,2 +1,204 @@
 # ResilientDNS
-Resilient DNS cache and forwarder designed for unreliable and high-latency networks
+
+**ResilientDNS** is an open-source DNS cache and forwarder designed for
+**unreliable, high-latency, and low-quality network environments**.
+
+It aims to provide correct, resilient DNS resolution for local networks
+while minimizing upstream dependencies and unnecessary HTTPS traffic.
+
+---
+
+## Motivation
+
+In some regions and network conditions, DNS resolution is unreliable due to:
+
+- Packet loss and unstable UDP/TCP DNS
+- DNS hijacking or tampering
+- Intermittent or degraded HTTPS connectivity
+- Partial or unreliable HTTP/2 support
+- Legacy devices (routers, TVs, IoT, embedded systems) that do not support DNS-over-HTTPS (DoH)
+
+While DoH improves security and integrity, many environments cannot rely on
+stable or efficient HTTPS connections, and aggressive prefetching can make
+things worse on slow links.
+
+**ResilientDNS** focuses on *practical resilience* rather than ideal conditions.
+
+---
+
+## Project Goals
+
+ResilientDNS is designed to:
+
+- Accept **standard DNS (UDP/TCP)** queries from LAN devices
+- Provide a **smart local DNS cache**
+  - TTL-aware positive caching
+  - Negative caching (NXDOMAIN / NODATA)
+  - Serve-stale behavior for resilience
+- Reduce upstream dependency using:
+  - Controlled, budgeted prefetch
+  - Request deduplication
+  - Batched upstream resolution
+- Work reliably over **HTTP/1.1**
+  - No hard dependency on HTTP/2
+- Remain protocol-correct and transparent to clients
+
+---
+
+## Non-Goals
+
+This project explicitly does **not** aim to:
+
+- Circumvent censorship or filtering
+- Provide anonymity or traffic obfuscation
+- Break DNS protocol behavior on the LAN side
+- Act as a VPN, proxy, or tunneling solution
+- Enable illegal or unethical use cases
+
+ResilientDNS focuses on **reliability, correctness, and performance**.
+
+---
+
+## High-Level Architecture
+
+# ResilientDNS
+
+**ResilientDNS** is an open-source DNS cache and forwarder designed for
+**unreliable, high-latency, and low-quality network environments**.
+
+It aims to provide correct, resilient DNS resolution for local networks
+while minimizing upstream dependencies and unnecessary HTTPS traffic.
+
+---
+
+## Motivation
+
+In some regions and network conditions, DNS resolution is unreliable due to:
+
+- Packet loss and unstable UDP/TCP DNS
+- DNS hijacking or tampering
+- Intermittent or degraded HTTPS connectivity
+- Partial or unreliable HTTP/2 support
+- Legacy devices (routers, TVs, IoT, embedded systems) that do not support DNS-over-HTTPS (DoH)
+
+While DoH improves security and integrity, many environments cannot rely on
+stable or efficient HTTPS connections, and aggressive prefetching can make
+things worse on slow links.
+
+**ResilientDNS** focuses on *practical resilience* rather than ideal conditions.
+
+---
+
+## Project Goals
+
+ResilientDNS is designed to:
+
+- Accept **standard DNS (UDP/TCP)** queries from LAN devices
+- Provide a **smart local DNS cache**
+  - TTL-aware positive caching
+  - Negative caching (NXDOMAIN / NODATA)
+  - Serve-stale behavior for resilience
+- Reduce upstream dependency using:
+  - Controlled, budgeted prefetch
+  - Request deduplication
+  - Batched upstream resolution
+- Work reliably over **HTTP/1.1**
+  - No hard dependency on HTTP/2
+- Remain protocol-correct and transparent to clients
+
+---
+
+## Non-Goals
+
+This project explicitly does **not** aim to:
+
+- Circumvent censorship or filtering
+- Provide anonymity or traffic obfuscation
+- Break DNS protocol behavior on the LAN side
+- Act as a VPN, proxy, or tunneling solution
+- Enable illegal or unethical use cases
+
+ResilientDNS focuses on **reliability, correctness, and performance**.
+
+---
+
+## High-Level Architecture
+
+```text
+LAN Devices
+|
+| Standard DNS (UDP / TCP)
+v
+ResilientDNS (Python)
+|
+| HTTPS (batched, HTTP/1.1 friendly)
+v
+Remote Gateway
+|
+| DoH
+v
+Upstream DNS Resolver
+```
+
+- LAN devices remain completely unaware of DoH
+- Upstream communication is controlled, batched, and minimized
+- Serve-stale behavior allows continued operation during outages
+
+---
+
+## Project Status
+
+🚧 **Early development / MVP phase**
+
+This repository is under active development and is intended as:
+
+- A learning and research project
+- A production-quality engineering portfolio
+- A foundation for experimenting with resilient DNS designs
+
+Interfaces, internals, and layouts may evolve as the project matures.
+
+---
+
+## Repository Structure (Current and Planned)
+
+The repository is structured to remain **clean, scalable, and multi-language friendly**:
+
+```text
+resilient-dns/
+├─ src/
+│  └─ resilientdns/                # Python LAN DNS resolver (core product)
+│
+├─ tests/                          # Unit and integration tests
+│
+├─ docs/                           # Architecture, design notes, documentation
+│
+├─ gateways/                       # Remote batch DNS resolvers (server-side)
+│  ├─ cloudflare-worker/           # Cloudflare Worker implementation
+│  ├─ php/                         # PHP-based gateway (future)
+│  ├─ dotnet/                      # .NET-based gateway (future)
+│  └─ node/                        # Node.js gateway (future)
+│
+├─ tools/                          # Client-side utilities and diagnostics
+│  ├─ dns-check/                   # DNS testing and validation tools
+│  ├─ trace/                       # Resolution tracing and debugging tools
+│  └─ benchmark/                   # Performance and latency benchmarks
+│
+└─ infra/                          # Optional infrastructure and automation
+   ├─ docker/                      # Containerization assets
+   └─ github-actions/              # CI/CD workflows
+```
+
+This layout intentionally separates:
+- **Core resolver logic**
+- **Gateway implementations**
+- **Supporting tools**
+- **Infrastructure concerns**
+
+---
+
+## License
+
+This project is licensed under the **Apache License 2.0**.
+
+See the `LICENSE` file for details.

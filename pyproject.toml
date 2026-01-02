@@ -1,0 +1,43 @@
+[project]
+name = "resilientdns"
+version = "0.1.0"
+description = "Resilient DNS cache and forwarder designed for unreliable and high-latency networks"
+authors = [{ name = "Amirpooyan Raeessi" }]
+license = { text = "Apache-2.0" }
+readme = "README.md"
+requires-python = ">=3.10"
+
+dependencies = [
+  "dnslib>=0.9.24",
+  "httpx>=0.27.0",
+]
+
+[project.scripts]
+resilientdns = "resilientdns.main:main"
+
+[project.optional-dependencies]
+dev = [
+  "pytest",
+  "ruff",
+  "black",
+  "mkdocs",
+  "mkdocs-material",
+  "pymdown-extensions",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+
+[tool.black]
+line-length = 100
+target-version = ["py310"]
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
