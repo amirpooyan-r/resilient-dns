@@ -26,6 +26,8 @@ class UdpDnsServer(asyncio.DatagramProtocol):
         self.handler = handler
         self.transport: asyncio.DatagramTransport | None = None
         self.ready = asyncio.Event()
+        self._stop_event = asyncio.Event()
+        self._tasks: set[asyncio.Task] = set()
 
     async def run(self) -> None:
         loop = asyncio.get_running_loop()
@@ -36,13 +38,16 @@ class UdpDnsServer(asyncio.DatagramProtocol):
         logger.info("Listening on udp://%s:%d", self.config.host, self.config.port)
 
         try:
-            await asyncio.Future()  # run forever
+            await self._stop_event.wait()
         finally:
+            self._cancel_tasks()
             if self.transport:
                 self.transport.close()
 
     def datagram_received(self, data: bytes, addr):
-        asyncio.create_task(self._handle_datagram(data, addr))
+        task = asyncio.create_task(self._handle_datagram(data, addr))
+        self._tasks.add(task)
+        task.add_done_callback(self._tasks.discard)
 
     async def _handle_datagram(self, data: bytes, addr):
         try:
@@ -57,3 +62,15 @@ class UdpDnsServer(asyncio.DatagramProtocol):
                 self.transport.sendto(resp.pack(), addr)
         except Exception:
             logger.exception("Handler failed for %s", addr)
+
+    def stop(self) -> None:
+        if not self._stop_event.is_set():
+            self._stop_event.set()
+        if self.transport:
+            self.transport.close()
+        self._cancel_tasks()
+
+    def _cancel_tasks(self) -> None:
+        for task in list(self._tasks):
+            if not task.done():
+                task.cancel()

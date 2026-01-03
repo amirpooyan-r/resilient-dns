@@ -2,11 +2,12 @@ import argparse
 import asyncio
 import contextlib
 import logging
+import signal
 
 from resilientdns.cache.memory import CacheConfig, MemoryDnsCache
 from resilientdns.dns.handler import DnsHandler
 from resilientdns.dns.server import UdpDnsServer, UdpServerConfig
-from resilientdns.metrics import Metrics, periodic_stats_reporter
+from resilientdns.metrics import Metrics, format_stats, periodic_stats_reporter
 from resilientdns.upstream.udp_forwarder import (
     UdpUpstreamForwarder,
     UpstreamUdpConfig,
@@ -22,6 +23,7 @@ def _setup_logging(verbose: bool) -> None:
 
 
 async def _run(args) -> None:
+    logger = logging.getLogger("resilientdns")
     metrics = Metrics()
     upstream = UdpUpstreamForwarder(
         UpstreamUdpConfig(
@@ -40,18 +42,36 @@ async def _run(args) -> None:
     server = UdpDnsServer(
         UdpServerConfig(host=args.listen_host, port=args.listen_port), handler=handler
     )
+    loop = asyncio.get_running_loop()
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        try:
+            loop.add_signal_handler(sig, server.stop)
+        except NotImplementedError:
+            pass
     server_task = asyncio.create_task(server.run())
+    ready_task = asyncio.create_task(server.ready.wait())
     reporter_task = None
 
     try:
-        await server.ready.wait()
+        done, _ = await asyncio.wait({server_task, ready_task}, return_when=asyncio.FIRST_COMPLETED)
+        if server_task in done:
+            await server_task
+            return
         reporter_task = asyncio.create_task(periodic_stats_reporter(metrics))
         await server_task
     finally:
+        logger.info("Shutting down...")
+        if not ready_task.done():
+            ready_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await ready_task
         if reporter_task:
             reporter_task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await reporter_task
+        snapshot = metrics.snapshot()
+        if any(snapshot.values()):
+            logger.info(format_stats(snapshot))
 
 
 def main() -> None:
