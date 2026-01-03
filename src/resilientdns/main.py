@@ -1,11 +1,12 @@
 import argparse
 import asyncio
+import contextlib
 import logging
 
 from resilientdns.cache.memory import CacheConfig, MemoryDnsCache
 from resilientdns.dns.handler import DnsHandler
 from resilientdns.dns.server import UdpDnsServer, UdpServerConfig
-from resilientdns.metrics import Metrics
+from resilientdns.metrics import Metrics, periodic_stats_reporter
 from resilientdns.upstream.udp_forwarder import (
     UdpUpstreamForwarder,
     UpstreamUdpConfig,
@@ -39,7 +40,17 @@ async def _run(args) -> None:
     server = UdpDnsServer(
         UdpServerConfig(host=args.listen_host, port=args.listen_port), handler=handler
     )
-    await server.run()
+    reporter_task = None
+    if metrics:
+        reporter_task = asyncio.create_task(periodic_stats_reporter(metrics))
+
+    try:
+        await server.run()
+    finally:
+        if reporter_task:
+            reporter_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await reporter_task
 
 
 def main() -> None:
