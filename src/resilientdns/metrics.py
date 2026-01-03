@@ -46,6 +46,6 @@ async def periodic_stats_reporter(metrics: Metrics | None, interval_s: float = 3
     while True:
         await asyncio.sleep(interval_s)
         snapshot = metrics.snapshot()
-        if not snapshot:
+        if not any(snapshot.values()):
             continue
         logger.info(format_stats(snapshot))
