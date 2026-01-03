@@ -8,15 +8,13 @@ from resilientdns.dns.handler import DnsHandler, HandlerConfig
 from resilientdns.metrics import Metrics
 
 
-class SleepUpstream:
-    def __init__(self, delay_s: float):
-        self.delay_s = delay_s
+class TimeoutUpstream:
+    def __init__(self):
         self.calls = 0
 
     async def query(self, wire: bytes):
         self.calls += 1
-        await asyncio.sleep(self.delay_s)
-        return None
+        raise asyncio.TimeoutError()
 
 
 class ErrorUpstream:
@@ -52,7 +50,7 @@ def test_cold_miss_timeout_servfail():
     async def run():
         metrics = Metrics()
         cache = MemoryDnsCache(CacheConfig(), metrics=metrics)
-        upstream = SleepUpstream(0.2)
+        upstream = TimeoutUpstream()
         handler = DnsHandler(
             upstream=upstream,
             cache=cache,
@@ -76,7 +74,7 @@ def test_stale_timeout_serves_stale_immediately():
     async def run():
         metrics = Metrics()
         cache = MemoryDnsCache(CacheConfig(serve_stale_max_s=60), metrics=metrics)
-        upstream = SleepUpstream(0.2)
+        upstream = TimeoutUpstream()
         handler = DnsHandler(
             upstream=upstream,
             cache=cache,
@@ -104,7 +102,7 @@ def test_stale_timeout_serves_stale_immediately():
         assert resp.pack() == stale_response
         assert elapsed < 0.08
 
-        await asyncio.sleep(0.1)
+        await asyncio.sleep(0)
         snap = metrics.snapshot()
         assert snap.get("cache_hit_stale_total", 0) == 1
         assert snap.get("upstream_fail_total", 0) == 1

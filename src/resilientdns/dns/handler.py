@@ -7,7 +7,6 @@ from dnslib import QTYPE, RCODE, DNSRecord
 from resilientdns.cache.memory import MemoryDnsCache
 from resilientdns.dns.singleflight import SingleFlight
 from resilientdns.metrics import Metrics
-from resilientdns.upstream.udp_forwarder import UdpUpstreamForwarder
 
 logger = logging.getLogger("resilientdns")
 
@@ -33,7 +32,7 @@ class DnsHandler:
 
     def __init__(
         self,
-        upstream: UdpUpstreamForwarder,
+        upstream: object,
         cache: MemoryDnsCache,
         config: HandlerConfig | None = None,
         metrics: Metrics | None = None,
@@ -188,15 +187,17 @@ class DnsHandler:
 
     async def _query_upstream(self, wire: bytes, qname: str, qtype_name: str) -> bytes | None:
         try:
-            return await asyncio.wait_for(
-                self.upstream.query(wire),
-                timeout=self.config.upstream_timeout_s,
-            )
+            resp = await self.upstream.query(wire)
         except asyncio.TimeoutError:
             logger.warning("UPSTREAM TIMEOUT %s %s", qname, qtype_name)
+            resp = None
         except Exception:
             logger.exception("UPSTREAM ERROR %s %s", qname, qtype_name)
+            resp = None
 
-        if self.metrics:
-            self.metrics.inc("upstream_fail_total")
-        return None
+        if resp is None:
+            if self.metrics:
+                self.metrics.inc("upstream_fail_total")
+            return None
+
+        return resp
