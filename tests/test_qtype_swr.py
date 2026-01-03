@@ -64,7 +64,7 @@ def test_swr_refresh_builds_query_with_qtype_name():
         qname = "example.com"
         key = (qname, int(QTYPE.A))
         stale_response = _make_response(request.pack(), "1.2.3.4")
-        now = time.time()
+        now = time.monotonic()
         cache._store[key] = CacheEntry(
             response_wire=stale_response,
             expires_at=now - 10,

@@ -42,7 +42,7 @@ class MemoryDnsCache:
         e = self._store.get(key)
         if not e:
             return None
-        now = time.time()
+        now = time.monotonic()
         if now <= e.expires_at:
             self._count_negative(e)
             return e.response_wire
@@ -52,14 +52,14 @@ class MemoryDnsCache:
         e = self._store.get(key)
         if not e:
             return None
-        now = time.time()
+        now = time.monotonic()
         if e.expires_at < now <= e.stale_until:
             self._count_negative(e)
             return e.response_wire
         return None
 
     def put(self, key: CacheKey, response: DNSRecord) -> None:
-        now = time.time()
+        now = time.monotonic()
 
         ttl = self._compute_ttl_seconds(response)
         ttl = max(0, ttl)

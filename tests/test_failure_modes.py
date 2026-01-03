@@ -85,7 +85,7 @@ def test_stale_timeout_serves_stale_immediately():
         key = _cache_key(request)
 
         stale_response = _make_response(request.pack(), "1.2.3.4")
-        now = time.time()
+        now = time.monotonic()
         cache._put_entry_for_test(
             key,
             CacheEntry(
@@ -126,7 +126,7 @@ def test_stale_error_serves_stale_immediately():
         key = _cache_key(request)
 
         stale_response = _make_response(request.pack(), "1.2.3.4")
-        now = time.time()
+        now = time.monotonic()
         cache._put_entry_for_test(
             key,
             CacheEntry(

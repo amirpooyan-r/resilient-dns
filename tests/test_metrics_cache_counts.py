@@ -67,7 +67,7 @@ def test_metrics_cache_counts():
         qname = str(request.q.qname).rstrip(".").lower()
         key = (qname, int(QTYPE.A))
         stale_response = _make_response(request.pack(), "9.9.9.9")
-        now = time.time()
+        now = time.monotonic()
         cache._put_entry_for_test(
             key,
             CacheEntry(
