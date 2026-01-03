@@ -17,6 +17,7 @@ _STATS_FIELDS = (
     ("upstream_fail", "upstream_fail_total"),
     ("refresh", "swr_refresh_triggered_total"),
     ("dedup", "singleflight_dedup_total"),
+    ("dropped", "dropped_total"),
 )
 
 

@@ -40,7 +40,13 @@ async def _run(args) -> None:
     )
     handler = DnsHandler(upstream=upstream, cache=cache, metrics=metrics)
     server = UdpDnsServer(
-        UdpServerConfig(host=args.listen_host, port=args.listen_port), handler=handler
+        UdpServerConfig(
+            host=args.listen_host,
+            port=args.listen_port,
+            max_inflight=args.max_inflight,
+        ),
+        handler=handler,
+        metrics=metrics,
     )
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGINT, signal.SIGTERM):
@@ -75,6 +81,7 @@ def main() -> None:
     # Listener options
     parser.add_argument("--listen-host", default="127.0.0.1")
     parser.add_argument("--listen-port", type=int, default=5353)
+    parser.add_argument("--max-inflight", type=int, default=256)
 
     # Upstream DNS (temporary)
     parser.add_argument("--upstream-host", default="1.1.1.1")

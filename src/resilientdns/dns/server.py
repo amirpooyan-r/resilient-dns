@@ -4,6 +4,8 @@ from dataclasses import dataclass
 
 from dnslib import DNSRecord
 
+from resilientdns.metrics import Metrics
+
 logger = logging.getLogger("resilientdns")
 
 
@@ -11,6 +13,7 @@ logger = logging.getLogger("resilientdns")
 class UdpServerConfig:
     host: str = "127.0.0.1"
     port: int = 5353
+    max_inflight: int = 256
 
 
 class UdpDnsServer(asyncio.DatagramProtocol):
@@ -21,13 +24,14 @@ class UdpDnsServer(asyncio.DatagramProtocol):
         async def handle(request: DNSRecord, client_addr) -> DNSRecord
     """
 
-    def __init__(self, config: UdpServerConfig, handler):
+    def __init__(self, config: UdpServerConfig, handler, metrics: Metrics | None = None):
         self.config = config
         self.handler = handler
+        self.metrics = metrics
         self.transport: asyncio.DatagramTransport | None = None
         self.ready = asyncio.Event()
         self._stop_event = asyncio.Event()
-        self._tasks: set[asyncio.Task] = set()
+        self._inflight: set[asyncio.Task] = set()
 
     async def run(self) -> None:
         loop = asyncio.get_running_loop()
@@ -45,9 +49,13 @@ class UdpDnsServer(asyncio.DatagramProtocol):
                 self.transport.close()
 
     def datagram_received(self, data: bytes, addr):
+        if self.config.max_inflight > 0 and len(self._inflight) >= self.config.max_inflight:
+            if self.metrics:
+                self.metrics.inc("dropped_total")
+            return
         task = asyncio.create_task(self._handle_datagram(data, addr))
-        self._tasks.add(task)
-        task.add_done_callback(self._tasks.discard)
+        self._inflight.add(task)
+        task.add_done_callback(self._inflight.discard)
 
     async def _handle_datagram(self, data: bytes, addr):
         try:
@@ -70,6 +78,6 @@ class UdpDnsServer(asyncio.DatagramProtocol):
             self.transport.close()
 
     def _cancel_tasks(self) -> None:
-        for task in list(self._tasks):
+        for task in list(self._inflight):
             if not task.done():
                 task.cancel()
