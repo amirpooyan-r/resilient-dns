@@ -36,8 +36,8 @@ def test_inflight_cap_drops_packets():
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         try:
             sock.sendto(payload, (host, port))
-            await asyncio.sleep(0)
-            for _ in range(5):
+            await asyncio.sleep(0.01)
+            for _ in range(20):
                 sock.sendto(payload, (host, port))
             await asyncio.sleep(0.02)
         finally:

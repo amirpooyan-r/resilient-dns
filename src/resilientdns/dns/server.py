@@ -81,3 +81,4 @@ class UdpDnsServer(asyncio.DatagramProtocol):
         for task in list(self._inflight):
             if not task.done():
                 task.cancel()
+        self._inflight.clear()
