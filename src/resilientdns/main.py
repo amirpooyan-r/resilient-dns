@@ -40,14 +40,18 @@ async def _run(args) -> None:
     server = UdpDnsServer(
         UdpServerConfig(host=args.listen_host, port=args.listen_port), handler=handler
     )
-    reporter_task = asyncio.create_task(periodic_stats_reporter(metrics))
+    server_task = asyncio.create_task(server.run())
+    reporter_task = None
 
     try:
-        await server.run()
+        await server.ready.wait()
+        reporter_task = asyncio.create_task(periodic_stats_reporter(metrics))
+        await server_task
     finally:
-        reporter_task.cancel()
-        with contextlib.suppress(asyncio.CancelledError):
-            await reporter_task
+        if reporter_task:
+            reporter_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await reporter_task
 
 
 def main() -> None:

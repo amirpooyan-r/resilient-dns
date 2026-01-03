@@ -25,12 +25,14 @@ class UdpDnsServer(asyncio.DatagramProtocol):
         self.config = config
         self.handler = handler
         self.transport: asyncio.DatagramTransport | None = None
+        self.ready = asyncio.Event()
 
     async def run(self) -> None:
         loop = asyncio.get_running_loop()
         self.transport, _ = await loop.create_datagram_endpoint(
             lambda: self, local_addr=(self.config.host, self.config.port)
         )
+        self.ready.set()
         logger.info("Listening on udp://%s:%d", self.config.host, self.config.port)
 
         try:
