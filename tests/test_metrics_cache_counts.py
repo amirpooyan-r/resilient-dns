@@ -56,26 +56,32 @@ def test_metrics_cache_counts():
         assert snap.get("cache_miss_total", 0) == 1
         assert snap.get("cache_hit_fresh_total", 0) == 0
         assert snap.get("cache_hit_stale_total", 0) == 0
+        assert snap.get("queries_total", 0) == 1
 
         await handler.handle(request, ("127.0.0.1", 5353))
         snap = metrics.snapshot()
         assert snap.get("cache_hit_fresh_total", 0) == 1
         assert snap.get("cache_miss_total", 0) == 1
+        assert snap.get("queries_total", 0) == 2
 
         qname = "example.com"
         key = (qname, int(QTYPE.A))
         stale_response = _make_response(request.pack(), "9.9.9.9")
         now = time.time()
-        cache._store[key] = CacheEntry(
-            response_wire=stale_response,
-            expires_at=now - 10,
-            stale_until=now + 60,
-            rcode=0,
+        cache._put_entry_for_test(
+            key,
+            CacheEntry(
+                response_wire=stale_response,
+                expires_at=now - 10,
+                stale_until=now + 60,
+                rcode=0,
+            ),
         )
 
         await handler.handle(request, ("127.0.0.1", 5353))
         snap = metrics.snapshot()
         assert snap.get("cache_hit_stale_total", 0) == 1
         assert snap.get("cache_miss_total", 0) == 1
+        assert snap.get("queries_total", 0) == 3
 
     asyncio.run(run())

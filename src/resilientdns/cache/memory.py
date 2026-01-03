@@ -1,5 +1,6 @@
 import time
 from dataclasses import dataclass
+from typing import TypeAlias
 
 from dnslib import RCODE, DNSRecord
 
@@ -23,6 +24,9 @@ class CacheEntry:
     rcode: int
 
 
+CacheKey: TypeAlias = tuple[str, int]
+
+
 class MemoryDnsCache:
     """
     Simple in-memory DNS cache keyed by (qname_lower, qtype_int).
@@ -32,9 +36,9 @@ class MemoryDnsCache:
     def __init__(self, config: CacheConfig, metrics: Metrics | None = None):
         self.config = config
         self.metrics = metrics
-        self._store: dict[tuple[str, int], CacheEntry] = {}
+        self._store: dict[CacheKey, CacheEntry] = {}
 
-    def get_fresh(self, key: tuple[str, int]) -> bytes | None:
+    def get_fresh(self, key: CacheKey) -> bytes | None:
         e = self._store.get(key)
         if not e:
             return None
@@ -44,7 +48,7 @@ class MemoryDnsCache:
             return e.response_wire
         return None
 
-    def get_stale(self, key: tuple[str, int]) -> bytes | None:
+    def get_stale(self, key: CacheKey) -> bytes | None:
         e = self._store.get(key)
         if not e:
             return None
@@ -54,7 +58,7 @@ class MemoryDnsCache:
             return e.response_wire
         return None
 
-    def put(self, key: tuple[str, int], response: DNSRecord) -> None:
+    def put(self, key: CacheKey, response: DNSRecord) -> None:
         now = time.time()
 
         ttl = self._compute_ttl_seconds(response)
@@ -69,6 +73,10 @@ class MemoryDnsCache:
             stale_until=stale_until,
             rcode=response.header.rcode,
         )
+
+    def _put_entry_for_test(self, key: CacheKey, entry: CacheEntry) -> None:
+        """Test helper; not part of public API."""
+        self._store[key] = entry
 
     def _count_negative(self, entry: CacheEntry) -> None:
         if self.metrics and entry.rcode != RCODE.NOERROR:
