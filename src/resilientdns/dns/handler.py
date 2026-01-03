@@ -65,7 +65,7 @@ class DnsHandler:
             logger.info("CACHE HIT (fresh) %s %s", qname, qtype_name)
             if self.metrics:
                 self.metrics.inc("cache_hit_fresh_total")
-            return DNSRecord.parse(fresh)
+            return self._with_txid(request, DNSRecord.parse(fresh))
 
         # 2) Stale cache => serve immediately and refresh in background
         stale = self.cache.get_stale(key)
@@ -74,7 +74,7 @@ class DnsHandler:
             if self.metrics:
                 self.metrics.inc("cache_hit_stale_total")
             await self._schedule_refresh(key, qname, qtype_name)
-            return DNSRecord.parse(stale)
+            return self._with_txid(request, DNSRecord.parse(stale))
 
         # 3) Cache miss => singleflight upstream resolve
         if self.metrics:
@@ -95,7 +95,7 @@ class DnsHandler:
             resp = None
 
         if resp is not None:
-            return resp
+            return self._with_txid(request, resp)
 
         # 4) Upstream failed: if stale appeared meanwhile, serve it
         stale2 = self.cache.get_stale(key)
@@ -104,11 +104,11 @@ class DnsHandler:
             if self.metrics:
                 self.metrics.inc("cache_hit_stale_total")
             await self._schedule_refresh(key, qname, qtype_name)
-            return DNSRecord.parse(stale2)
+            return self._with_txid(request, DNSRecord.parse(stale2))
 
         reply = request.reply()
         reply.header.rcode = RCODE.SERVFAIL
-        return reply
+        return self._with_txid(request, reply)
 
     def _qtype_mapping(self, qtype) -> tuple[int, str]:
         # Cache key uses integer qtype; dnslib APIs want the string name ("A", "AAAA", ...)
@@ -118,6 +118,10 @@ class DnsHandler:
         except Exception:
             qtype_name = str(qtype)  # fallback (shouldn't happen)
         return qtype_id, qtype_name
+
+    def _with_txid(self, request: DNSRecord, response: DNSRecord) -> DNSRecord:
+        response.header.id = request.header.id
+        return response
 
     async def _resolve_upstream(
         self, request: DNSRecord, key: tuple[str, int], qname: str, qtype_name: str

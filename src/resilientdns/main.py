@@ -49,22 +49,14 @@ async def _run(args) -> None:
         except NotImplementedError:
             pass
     server_task = asyncio.create_task(server.run())
-    ready_task = asyncio.create_task(server.ready.wait())
     reporter_task = None
 
     try:
-        done, _ = await asyncio.wait({server_task, ready_task}, return_when=asyncio.FIRST_COMPLETED)
-        if server_task in done:
-            await server_task
-            return
+        await server.ready.wait()
         reporter_task = asyncio.create_task(periodic_stats_reporter(metrics))
         await server_task
     finally:
         logger.info("Shutting down...")
-        if not ready_task.done():
-            ready_task.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
-                await ready_task
         if reporter_task:
             reporter_task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
