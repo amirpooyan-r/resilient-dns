@@ -89,10 +89,7 @@ class DnsHandler:
             logger.info("CACHE MISS (join) %s %s", qname, qtype_name)
 
         try:
-            resp = await asyncio.wait_for(task, timeout=self.config.upstream_timeout_s)
-        except asyncio.TimeoutError:
-            logger.warning("UPSTREAM TIMEOUT %s %s", qname, qtype_name)
-            resp = None
+            resp = await task
         except Exception:
             logger.exception("UPSTREAM ERROR %s %s", qname, qtype_name)
             resp = None
@@ -125,7 +122,7 @@ class DnsHandler:
     async def _resolve_upstream(
         self, request: DNSRecord, key: tuple[str, int], qname: str, qtype_name: str
     ) -> DNSRecord | None:
-        resp_bytes = await self.upstream.query(request.pack())
+        resp_bytes = await self._query_upstream(request.pack(), qname, qtype_name)
         if resp_bytes is None:
             return None
 
@@ -160,7 +157,7 @@ class DnsHandler:
             logger.exception("REFRESH BUILD FAIL %s %s", qname, qtype_name)
             return None
 
-        resp_bytes = await self.upstream.query(new_req.pack())
+        resp_bytes = await self._query_upstream(new_req.pack(), qname, qtype_name)
         if resp_bytes is None:
             return None
 
@@ -184,3 +181,18 @@ class DnsHandler:
             logger.error("REFRESH TIMEOUT %s %s", qname, qtype_name)
         except Exception:
             logger.exception("REFRESH ERROR %s %s", qname, qtype_name)
+
+    async def _query_upstream(self, wire: bytes, qname: str, qtype_name: str) -> bytes | None:
+        try:
+            return await asyncio.wait_for(
+                self.upstream.query(wire),
+                timeout=self.config.upstream_timeout_s,
+            )
+        except asyncio.TimeoutError:
+            logger.warning("UPSTREAM TIMEOUT %s %s", qname, qtype_name)
+        except Exception:
+            logger.exception("UPSTREAM ERROR %s %s", qname, qtype_name)
+
+        if self.metrics:
+            self.metrics.inc("upstream_fail_total")
+        return None
