@@ -64,7 +64,7 @@ def test_metrics_cache_counts():
         assert snap.get("cache_miss_total", 0) == 1
         assert snap.get("queries_total", 0) == 2
 
-        qname = "example.com"
+        qname = str(request.q.qname).rstrip(".").lower()
         key = (qname, int(QTYPE.A))
         stale_response = _make_response(request.pack(), "9.9.9.9")
         now = time.time()
