@@ -68,7 +68,6 @@ class UdpDnsServer(asyncio.DatagramProtocol):
             self._stop_event.set()
         if self.transport:
             self.transport.close()
-        self._cancel_tasks()
 
     def _cancel_tasks(self) -> None:
         for task in list(self._tasks):
