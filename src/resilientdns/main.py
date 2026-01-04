@@ -6,7 +6,7 @@ import signal
 
 from resilientdns.cache.memory import CacheConfig, MemoryDnsCache
 from resilientdns.dns.handler import DnsHandler
-from resilientdns.dns.server import UdpDnsServer, UdpServerConfig
+from resilientdns.dns.server import TcpDnsServer, TcpServerConfig, UdpDnsServer, UdpServerConfig
 from resilientdns.metrics import Metrics, format_stats, periodic_stats_reporter
 from resilientdns.upstream.udp_forwarder import (
     UdpUpstreamForwarder,
@@ -39,8 +39,17 @@ async def _run(args) -> None:
         metrics=metrics,
     )
     handler = DnsHandler(upstream=upstream, cache=cache, metrics=metrics)
-    server = UdpDnsServer(
+    udp_server = UdpDnsServer(
         UdpServerConfig(
+            host=args.listen_host,
+            port=args.listen_port,
+            max_inflight=args.max_inflight,
+        ),
+        handler=handler,
+        metrics=metrics,
+    )
+    tcp_server = TcpDnsServer(
+        TcpServerConfig(
             host=args.listen_host,
             port=args.listen_port,
             max_inflight=args.max_inflight,
@@ -51,22 +60,46 @@ async def _run(args) -> None:
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGINT, signal.SIGTERM):
         try:
-            loop.add_signal_handler(sig, server.stop)
+            loop.add_signal_handler(sig, lambda: (udp_server.stop(), tcp_server.stop()))
         except NotImplementedError:
             pass
-    server_task = asyncio.create_task(server.run())
+
+    async def wait_ready(server_task: asyncio.Task, ready: asyncio.Event) -> None:
+        ready_task = asyncio.create_task(ready.wait())
+        try:
+            done, _ = await asyncio.wait(
+                {server_task, ready_task}, return_when=asyncio.FIRST_COMPLETED
+            )
+            if server_task in done:
+                await server_task
+        finally:
+            if not ready_task.done():
+                ready_task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await ready_task
+
+    udp_task = asyncio.create_task(udp_server.run())
+    tcp_task = asyncio.create_task(tcp_server.run())
     reporter_task = None
 
     try:
-        await server.ready.wait()
+        await wait_ready(udp_task, udp_server.ready)
+        await wait_ready(tcp_task, tcp_server.ready)
         reporter_task = asyncio.create_task(periodic_stats_reporter(metrics))
-        await server_task
+        await asyncio.gather(udp_task, tcp_task)
     finally:
         logger.info("Shutting down...")
         if reporter_task:
             reporter_task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await reporter_task
+        udp_server.stop()
+        tcp_server.stop()
+        for task in (udp_task, tcp_task):
+            if not task.done():
+                task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await task
         close_fn = getattr(upstream, "close", None)
         if callable(close_fn):
             close_fn()
