@@ -121,3 +121,120 @@ def test_tcp_upstream_oversize_response_dropped():
         await server.wait_closed()
 
     asyncio.run(run())
+
+
+def test_tcp_upstream_reuses_connection():
+    async def run():
+        connection_count = 0
+
+        async def handler(reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
+            nonlocal connection_count
+            connection_count += 1
+            try:
+                while True:
+                    length = int.from_bytes(await reader.readexactly(2), "big")
+                    wire = await reader.readexactly(length)
+                    resp = _make_response(wire, "1.2.3.4")
+                    writer.write(len(resp).to_bytes(2, "big") + resp)
+                    await writer.drain()
+            except asyncio.IncompleteReadError:
+                pass
+            finally:
+                writer.close()
+                await writer.wait_closed()
+
+        server = await _serve_once("127.0.0.1", 0, handler)
+        host, port = server.sockets[0].getsockname()
+
+        forwarder = TcpUpstreamForwarder(
+            UpstreamTcpConfig(host=host, port=port),
+        )
+        wire = DNSRecord.question("example.com", qtype="A").pack()
+        resp1 = await forwarder.query(wire)
+        resp2 = await forwarder.query(wire)
+        assert resp1 is not None
+        assert resp2 is not None
+        assert connection_count == 1
+
+        await forwarder.close()
+        server.close()
+        await server.wait_closed()
+
+    asyncio.run(run())
+
+
+def test_tcp_upstream_pool_idle_timeout():
+    async def run():
+        connection_count = 0
+
+        async def handler(reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
+            nonlocal connection_count
+            connection_count += 1
+            try:
+                while True:
+                    length = int.from_bytes(await reader.readexactly(2), "big")
+                    wire = await reader.readexactly(length)
+                    resp = _make_response(wire, "1.2.3.4")
+                    writer.write(len(resp).to_bytes(2, "big") + resp)
+                    await writer.drain()
+            except asyncio.IncompleteReadError:
+                pass
+            finally:
+                writer.close()
+                await writer.wait_closed()
+
+        server = await _serve_once("127.0.0.1", 0, handler)
+        host, port = server.sockets[0].getsockname()
+
+        forwarder = TcpUpstreamForwarder(
+            UpstreamTcpConfig(host=host, port=port, pool_idle_timeout_s=0.05),
+        )
+        wire = DNSRecord.question("example.com", qtype="A").pack()
+        resp1 = await forwarder.query(wire)
+        assert resp1 is not None
+        await asyncio.sleep(0.1)
+        resp2 = await forwarder.query(wire)
+        assert resp2 is not None
+        assert connection_count == 2
+
+        await forwarder.close()
+        server.close()
+        await server.wait_closed()
+
+    asyncio.run(run())
+
+
+def test_tcp_upstream_closed_connection_not_reused():
+    async def run():
+        connection_count = 0
+
+        async def handler(reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
+            nonlocal connection_count
+            connection_count += 1
+            length = int.from_bytes(await reader.readexactly(2), "big")
+            wire = await reader.readexactly(length)
+            resp = _make_response(wire, "1.2.3.4")
+            writer.write(len(resp).to_bytes(2, "big") + resp)
+            await writer.drain()
+            writer.close()
+            await writer.wait_closed()
+
+        server = await _serve_once("127.0.0.1", 0, handler)
+        host, port = server.sockets[0].getsockname()
+
+        forwarder = TcpUpstreamForwarder(
+            UpstreamTcpConfig(host=host, port=port),
+        )
+        wire = DNSRecord.question("example.com", qtype="A").pack()
+        resp1 = await forwarder.query(wire)
+        assert resp1 is not None
+        await asyncio.sleep(0.1)
+        resp2 = await forwarder.query(wire)
+        assert resp2 is not None
+        assert connection_count == 2
+
+        await forwarder.close()
+        server.close()
+        await server.wait_closed()
+
+    asyncio.run(run())
