@@ -56,6 +56,17 @@ ResilientDNS is designed to:
 - SingleFlight deduplication (misses + refresh)
 - Lightweight in-process metrics counters
 
+## Configuration
+
+- `max_entries`: Maximum cache entries (0 = unlimited)
+- Eviction happens on insert (put), to keep the read path fast
+- Eviction order: fully expired entries first, then LRU
+
+### Metrics
+
+- `cache_entries`: Current number of cache entries (gauge)
+- `evictions_total`: Entries evicted due to capacity enforcement
+
 ---
 
 ## Quickstart (Local)

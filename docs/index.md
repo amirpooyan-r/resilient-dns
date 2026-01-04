@@ -19,6 +19,7 @@ ResilientDNS focuses on correctness and resilience while minimizing upstream HTT
 
 - UDP DNS listener
 - TTL-aware caching (positive + negative)
+- Bounded cache eviction (expired-first, then LRU)
 - Serve-stale behavior for resilience
 - Stale-while-revalidate (SWR)
 - SingleFlight deduplication

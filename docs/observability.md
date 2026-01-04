@@ -15,6 +15,8 @@ low-overhead view of trends.
 - `upstream_fail_total`: Count of upstream errors or timeouts.
 - `swr_refresh_triggered_total`: Count of SWR refresh attempts started.
 - `singleflight_dedup_total`: Count of requests deduplicated by SingleFlight.
+- `cache_entries`: Current number of cache entries (gauge).
+- `evictions_total`: Count of entries evicted due to capacity enforcement.
 
 `cache_hit_stale_total` includes both stale responses served immediately from
 cache and "late stale" responses served after an upstream timeout or error.

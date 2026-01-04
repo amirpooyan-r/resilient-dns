@@ -22,6 +22,13 @@ flowchart LR
 The cache is TTL-aware with negative caching and serve-stale support. This keeps
 responses available during upstream failures while respecting DNS TTLs.
 
+### Cache eviction
+
+The cache can be bounded by `max_entries` (0 = unlimited). Eviction runs on
+insert to keep the read path fast. When the cache is over capacity, fully
+expired entries (past `stale_until`) are removed first, then LRU eviction
+removes the oldest entries. This prevents unbounded memory growth under load.
+
 ## SWR + SingleFlight
 
 Stale-while-revalidate serves stale entries immediately and refreshes in the

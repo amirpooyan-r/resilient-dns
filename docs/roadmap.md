@@ -4,6 +4,7 @@
 - ✅ UDP DNS listener (port 5353 for dev)
 - ✅ TTL-aware cache (positive + negative)
 - ✅ Serve-stale (stale-if-error)
+- ✅ Bounded cache eviction (expired-first, then LRU)
 - ✅ Stale-while-revalidate (SWR)
 - Remote batch gateway client (HTTP/1.1 friendly)
 - Cloudflare Worker gateway starter
