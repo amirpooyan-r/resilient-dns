@@ -15,10 +15,8 @@ from resilientdns.dns.server import (
     UdpServerConfig,
 )
 from resilientdns.metrics import Metrics, format_stats, periodic_stats_reporter
-from resilientdns.upstream.udp_forwarder import (
-    UdpUpstreamForwarder,
-    UpstreamUdpConfig,
-)
+from resilientdns.upstream.tcp_forwarder import TcpUpstreamForwarder, UpstreamTcpConfig
+from resilientdns.upstream.udp_forwarder import UdpUpstreamForwarder, UpstreamUdpConfig
 
 
 def _setup_logging(verbose: bool) -> None:
@@ -32,12 +30,25 @@ def _setup_logging(verbose: bool) -> None:
 async def _run(args) -> None:
     logger = logging.getLogger("resilientdns")
     metrics = Metrics()
-    upstream = UdpUpstreamForwarder(
-        UpstreamUdpConfig(
-            host=args.upstream_host, port=args.upstream_port, timeout_s=args.upstream_timeout
-        ),
-        metrics=metrics,
-    )
+    if args.upstream_transport == "tcp":
+        upstream = TcpUpstreamForwarder(
+            UpstreamTcpConfig(
+                host=args.upstream_host,
+                port=args.upstream_port,
+                connect_timeout_s=args.upstream_timeout,
+                read_timeout_s=args.upstream_timeout,
+            ),
+            metrics=metrics,
+        )
+    else:
+        upstream = UdpUpstreamForwarder(
+            UpstreamUdpConfig(
+                host=args.upstream_host,
+                port=args.upstream_port,
+                timeout_s=args.upstream_timeout,
+            ),
+            metrics=metrics,
+        )
     cache = MemoryDnsCache(
         CacheConfig(
             serve_stale_max_s=args.serve_stale_max,
@@ -146,6 +157,11 @@ def main() -> None:
     parser.add_argument("--metrics-port", type=int, default=0)
 
     # Upstream DNS (temporary)
+    parser.add_argument(
+        "--upstream-transport",
+        choices=["udp", "tcp"],
+        default="udp",
+    )
     parser.add_argument("--upstream-host", default="1.1.1.1")
     parser.add_argument("--upstream-port", type=int, default=53)
     parser.add_argument("--upstream-timeout", type=float, default=2.0)
