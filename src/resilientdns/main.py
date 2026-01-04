@@ -6,7 +6,14 @@ import signal
 
 from resilientdns.cache.memory import CacheConfig, MemoryDnsCache
 from resilientdns.dns.handler import DnsHandler
-from resilientdns.dns.server import TcpDnsServer, TcpServerConfig, UdpDnsServer, UdpServerConfig
+from resilientdns.dns.server import (
+    HttpMetricsConfig,
+    HttpMetricsServer,
+    TcpDnsServer,
+    TcpServerConfig,
+    UdpDnsServer,
+    UdpServerConfig,
+)
 from resilientdns.metrics import Metrics, format_stats, periodic_stats_reporter
 from resilientdns.upstream.udp_forwarder import (
     UdpUpstreamForwarder,
@@ -57,10 +64,18 @@ async def _run(args) -> None:
         handler=handler,
         metrics=metrics,
     )
+    metrics_server = None
+    if args.metrics_port > 0:
+        metrics_server = HttpMetricsServer(
+            HttpMetricsConfig(host=args.metrics_host, port=args.metrics_port), metrics=metrics
+        )
     loop = asyncio.get_running_loop()
+    stop_fns = [udp_server.stop, tcp_server.stop]
+    if metrics_server:
+        stop_fns.append(metrics_server.stop)
     for sig in (signal.SIGINT, signal.SIGTERM):
         try:
-            loop.add_signal_handler(sig, lambda: (udp_server.stop(), tcp_server.stop()))
+            loop.add_signal_handler(sig, lambda: [fn() for fn in stop_fns])
         except NotImplementedError:
             pass
 
@@ -80,22 +95,31 @@ async def _run(args) -> None:
 
     udp_task = asyncio.create_task(udp_server.run())
     tcp_task = asyncio.create_task(tcp_server.run())
+    metrics_task = asyncio.create_task(metrics_server.run()) if metrics_server else None
     reporter_task = None
 
     try:
         await wait_ready(udp_task, udp_server.ready)
         await wait_ready(tcp_task, tcp_server.ready)
+        if metrics_server and metrics_task:
+            await wait_ready(metrics_task, metrics_server.ready)
         reporter_task = asyncio.create_task(periodic_stats_reporter(metrics))
-        await asyncio.gather(udp_task, tcp_task)
+        tasks = [udp_task, tcp_task]
+        if metrics_task:
+            tasks.append(metrics_task)
+        await asyncio.gather(*tasks)
     finally:
         logger.info("Shutting down...")
         if reporter_task:
             reporter_task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await reporter_task
-        udp_server.stop()
-        tcp_server.stop()
-        for task in (udp_task, tcp_task):
+        for fn in stop_fns:
+            fn()
+        tasks = [udp_task, tcp_task]
+        if metrics_task:
+            tasks.append(metrics_task)
+        for task in tasks:
             if not task.done():
                 task.cancel()
                 with contextlib.suppress(asyncio.CancelledError):
@@ -118,6 +142,8 @@ def main() -> None:
     parser.add_argument("--listen-host", default="127.0.0.1")
     parser.add_argument("--listen-port", type=int, default=5353)
     parser.add_argument("--max-inflight", type=int, default=256)
+    parser.add_argument("--metrics-host", default="127.0.0.1")
+    parser.add_argument("--metrics-port", type=int, default=0)
 
     # Upstream DNS (temporary)
     parser.add_argument("--upstream-host", default="1.1.1.1")
