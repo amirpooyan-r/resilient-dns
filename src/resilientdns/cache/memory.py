@@ -94,9 +94,16 @@ class MemoryDnsCache:
         if rcode == RCODE.NOERROR and len(resp.rr) > 0:
             return int(min(r.ttl for r in resp.rr if hasattr(r, "ttl")))
 
-        # Negative or NOERROR with no answers (NODATA): try SOA in authority
-        soa_ttls = [int(r.ttl) for r in resp.auth if getattr(r, "rtype", None) == 6]  # SOA=6
-        if soa_ttls:
-            return min(soa_ttls)
+        # Negative or NOERROR with no answers (NODATA): try SOA MINIMUM in authority
+        for r in resp.auth:
+            if getattr(r, "rtype", None) == 6:  # SOA=6
+                soa_rdata = getattr(r, "rdata", None)
+                minttl = getattr(soa_rdata, "minttl", None)
+                if minttl is None:
+                    times = getattr(soa_rdata, "times", None)
+                    if isinstance(times, (list, tuple)) and len(times) >= 5:
+                        minttl = times[4]
+                if minttl is not None:
+                    return int(minttl)
 
         return self.config.negative_ttl_s
