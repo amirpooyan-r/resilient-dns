@@ -19,6 +19,8 @@ _STATS_FIELDS = (
     ("dedup", "singleflight_dedup_total"),
     ("dropped", "dropped_total"),
     ("malformed", "malformed_total"),
+    ("cache_entries", "cache_entries"),
+    ("evictions", "evictions_total"),
 )
 
 
@@ -30,6 +32,10 @@ class Metrics:
     def inc(self, key: str, by: int = 1) -> None:
         with self._lock:
             self._counters[key] = self._counters.get(key, 0) + int(by)
+
+    def set(self, key: str, value: int) -> None:
+        with self._lock:
+            self._counters[key] = int(value)
 
     def snapshot(self) -> dict[str, int]:
         with self._lock:

@@ -79,11 +79,13 @@ class MemoryDnsCache:
         )
         self._touch(key)
         self._evict_if_needed()
+        self._update_cache_entries()
 
     def _put_entry_for_test(self, key: CacheKey, entry: CacheEntry) -> None:
         """Test helper; not part of public API."""
         self._store[key] = entry
         self._touch(key)
+        self._update_cache_entries()
 
     def _count_negative(self, entry: CacheEntry) -> None:
         if self.metrics and entry.rcode != RCODE.NOERROR:
@@ -103,9 +105,17 @@ class MemoryDnsCache:
             if len(self._store) <= self.config.max_entries:
                 return
             if now > entry.stale_until:
-                self._store.pop(key, None)
+                if self._store.pop(key, None) is not None:
+                    if self.metrics:
+                        self.metrics.inc("evictions_total")
         while len(self._store) > self.config.max_entries:
             self._store.popitem(last=False)
+            if self.metrics:
+                self.metrics.inc("evictions_total")
+
+    def _update_cache_entries(self) -> None:
+        if self.metrics:
+            self.metrics.set("cache_entries", len(self._store))
 
     def _compute_ttl_seconds(self, resp: DNSRecord) -> int:
         """
