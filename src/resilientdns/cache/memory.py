@@ -1,4 +1,5 @@
 import time
+from collections import OrderedDict
 from dataclasses import dataclass
 from typing import TypeAlias
 
@@ -14,6 +15,7 @@ class CacheConfig:
 
     # If response is negative (NXDOMAIN/NODATA) and has no SOA MINIMUM, use this TTL.
     negative_ttl_s: int = 60
+    max_entries: int = 0
 
 
 @dataclass
@@ -36,7 +38,7 @@ class MemoryDnsCache:
     def __init__(self, config: CacheConfig, metrics: Metrics | None = None):
         self.config = config
         self.metrics = metrics
-        self._store: dict[CacheKey, CacheEntry] = {}
+        self._store: OrderedDict[CacheKey, CacheEntry] = OrderedDict()
 
     def get_fresh(self, key: CacheKey) -> bytes | None:
         e = self._store.get(key)
@@ -45,6 +47,7 @@ class MemoryDnsCache:
         now = time.monotonic()
         if now <= e.expires_at:
             self._count_negative(e)
+            self._touch(key)
             return e.response_wire
         return None
 
@@ -55,6 +58,7 @@ class MemoryDnsCache:
         now = time.monotonic()
         if e.expires_at < now <= e.stale_until:
             self._count_negative(e)
+            self._touch(key)
             return e.response_wire
         return None
 
@@ -73,14 +77,27 @@ class MemoryDnsCache:
             stale_until=stale_until,
             rcode=response.header.rcode,
         )
+        self._touch(key)
+        self._evict_if_needed()
 
     def _put_entry_for_test(self, key: CacheKey, entry: CacheEntry) -> None:
         """Test helper; not part of public API."""
         self._store[key] = entry
+        self._touch(key)
 
     def _count_negative(self, entry: CacheEntry) -> None:
         if self.metrics and entry.rcode != RCODE.NOERROR:
             self.metrics.inc("negative_cache_hit_total")
+
+    def _touch(self, key: CacheKey) -> None:
+        if key in self._store:
+            self._store.move_to_end(key)
+
+    def _evict_if_needed(self) -> None:
+        if self.config.max_entries == 0:
+            return
+        while len(self._store) > self.config.max_entries:
+            self._store.popitem(last=False)
 
     def _compute_ttl_seconds(self, resp: DNSRecord) -> int:
         """
