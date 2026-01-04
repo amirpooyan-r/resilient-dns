@@ -27,6 +27,8 @@ class UdpUpstreamForwarder:
         self._closed = False
 
     async def query(self, wire: bytes) -> bytes | None:
+        if self._closed:
+            return None
         loop = asyncio.get_running_loop()
         return await loop.run_in_executor(self._executor, self._query_blocking, wire)
 

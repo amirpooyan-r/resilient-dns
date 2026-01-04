@@ -62,7 +62,7 @@ class UdpDnsServer(asyncio.DatagramProtocol):
         try:
             req = DNSRecord.parse(data)
         except Exception:
-            logger.warning("Invalid DNS packet from %s", addr)
+            logger.debug("Invalid DNS packet from %s", addr)
             if self.metrics:
                 self.metrics.inc("malformed_total")
             return
@@ -77,6 +77,10 @@ class UdpDnsServer(asyncio.DatagramProtocol):
                     resp.auth = []
                     resp.ar = []
                     wire = resp.pack()
+                    if len(wire) > self.config.max_udp_payload:
+                        if self.metrics:
+                            self.metrics.inc("dropped_total")
+                        return
                 self.transport.sendto(wire, addr)
         except Exception:
             logger.exception("Handler failed for %s", addr)

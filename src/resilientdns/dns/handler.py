@@ -175,7 +175,10 @@ class DnsHandler:
 
     async def _watch_refresh(self, task: asyncio.Task, qname: str, qtype_name: str) -> None:
         try:
-            resp = await asyncio.wait_for(task, timeout=self.config.refresh_watch_timeout_s)
+            resp = await asyncio.wait_for(
+                asyncio.shield(task),
+                timeout=self.config.refresh_watch_timeout_s,
+            )
             if resp is None:
                 logger.error("REFRESH FAIL %s %s", qname, qtype_name)
             else:
