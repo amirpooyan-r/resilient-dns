@@ -96,6 +96,14 @@ class MemoryDnsCache:
     def _evict_if_needed(self) -> None:
         if self.config.max_entries == 0:
             return
+        if len(self._store) <= self.config.max_entries:
+            return
+        now = time.monotonic()
+        for key, entry in list(self._store.items()):
+            if len(self._store) <= self.config.max_entries:
+                return
+            if now > entry.stale_until:
+                self._store.pop(key, None)
         while len(self._store) > self.config.max_entries:
             self._store.popitem(last=False)
 

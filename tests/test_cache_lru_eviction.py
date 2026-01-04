@@ -1,6 +1,8 @@
+import time
+
 from dnslib import QTYPE, RR, A, DNSRecord
 
-from resilientdns.cache.memory import CacheConfig, MemoryDnsCache
+from resilientdns.cache.memory import CacheConfig, CacheEntry, MemoryDnsCache
 
 
 def _make_response(qname: str, ip: str) -> DNSRecord:
@@ -55,3 +57,31 @@ def test_no_eviction_when_unlimited():
     assert cache.get_fresh(_key("a.example")) is not None
     assert cache.get_fresh(_key("b.example")) is not None
     assert cache.get_fresh(_key("c.example")) is not None
+
+
+def test_expired_entries_evicted_first():
+    cache = MemoryDnsCache(CacheConfig(max_entries=2))
+    now = time.monotonic()
+    cache._put_entry_for_test(
+        _key("expired.example"),
+        CacheEntry(
+            response_wire=b"expired",
+            expires_at=now - 20,
+            stale_until=now - 10,
+            rcode=0,
+        ),
+    )
+    cache._put_entry_for_test(
+        _key("valid.example"),
+        CacheEntry(
+            response_wire=b"valid",
+            expires_at=now + 20,
+            stale_until=now + 40,
+            rcode=0,
+        ),
+    )
+    cache.put(_key("new.example"), _make_response("new.example", "3.3.3.3"))
+
+    assert _key("expired.example") not in cache._store
+    assert _key("valid.example") in cache._store
+    assert _key("new.example") in cache._store
