@@ -14,6 +14,7 @@ class UdpServerConfig:
     host: str = "127.0.0.1"
     port: int = 5353
     max_inflight: int = 256
+    max_udp_payload: int = 1232
 
 
 class UdpDnsServer(asyncio.DatagramProtocol):
@@ -62,12 +63,21 @@ class UdpDnsServer(asyncio.DatagramProtocol):
             req = DNSRecord.parse(data)
         except Exception:
             logger.warning("Invalid DNS packet from %s", addr)
+            if self.metrics:
+                self.metrics.inc("malformed_total")
             return
 
         try:
             resp = await self.handler.handle(req, addr)
             if self.transport:
-                self.transport.sendto(resp.pack(), addr)
+                wire = resp.pack()
+                if self.config.max_udp_payload > 0 and len(wire) > self.config.max_udp_payload:
+                    resp.header.tc = 1
+                    resp.rr = []
+                    resp.auth = []
+                    resp.ar = []
+                    wire = resp.pack()
+                self.transport.sendto(wire, addr)
         except Exception:
             logger.exception("Handler failed for %s", addr)
 

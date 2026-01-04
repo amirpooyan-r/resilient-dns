@@ -18,6 +18,7 @@ _STATS_FIELDS = (
     ("refresh", "swr_refresh_triggered_total"),
     ("dedup", "singleflight_dedup_total"),
     ("dropped", "dropped_total"),
+    ("malformed", "malformed_total"),
 )
 
 
