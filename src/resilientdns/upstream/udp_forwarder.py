@@ -24,6 +24,7 @@ class UdpUpstreamForwarder:
         self.config = config
         self.metrics = metrics
         self._executor = ThreadPoolExecutor(max_workers=config.max_workers)
+        self._closed = False
 
     async def query(self, wire: bytes) -> bytes | None:
         loop = asyncio.get_running_loop()
@@ -36,9 +37,18 @@ class UdpUpstreamForwarder:
         s.settimeout(self.config.timeout_s)
         try:
             s.sendto(wire, (self.config.host, self.config.port))
-            data, _ = s.recvfrom(4096)
+            data, _ = s.recvfrom(65535)
             return data
         except Exception:
             return None
         finally:
             s.close()
+
+    def close(self) -> None:
+        if self._closed:
+            return
+        self._closed = True
+        try:
+            self._executor.shutdown(wait=False, cancel_futures=True)
+        except TypeError:
+            self._executor.shutdown(wait=False)

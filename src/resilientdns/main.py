@@ -67,6 +67,9 @@ async def _run(args) -> None:
             reporter_task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await reporter_task
+        close_fn = getattr(upstream, "close", None)
+        if callable(close_fn):
+            close_fn()
         snapshot = metrics.snapshot()
         if any(snapshot.values()):
             logger.info(format_stats(snapshot))
