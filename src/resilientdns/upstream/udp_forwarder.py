@@ -1,5 +1,6 @@
 import asyncio
 import socket
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 
 from resilientdns.metrics import Metrics
@@ -10,6 +11,7 @@ class UpstreamUdpConfig:
     host: str = "1.1.1.1"
     port: int = 53
     timeout_s: float = 2.0
+    max_workers: int = 32
 
 
 class UdpUpstreamForwarder:
@@ -21,10 +23,11 @@ class UdpUpstreamForwarder:
     def __init__(self, config: UpstreamUdpConfig, metrics: Metrics | None = None):
         self.config = config
         self.metrics = metrics
+        self._executor = ThreadPoolExecutor(max_workers=config.max_workers)
 
     async def query(self, wire: bytes) -> bytes | None:
         loop = asyncio.get_running_loop()
-        return await loop.run_in_executor(None, self._query_blocking, wire)
+        return await loop.run_in_executor(self._executor, self._query_blocking, wire)
 
     def _query_blocking(self, wire: bytes) -> bytes | None:
         if self.metrics:
@@ -36,8 +39,6 @@ class UdpUpstreamForwarder:
             data, _ = s.recvfrom(4096)
             return data
         except Exception:
-            if self.metrics:
-                self.metrics.inc("upstream_fail_total")
             return None
         finally:
             s.close()
