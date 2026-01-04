@@ -1,22 +1,55 @@
 # Observability
 
-ResilientDNS follows a "logs first" approach: logs are the primary tool for
-debugging behavior and verifying upstream failures, while counters provide a
-low-overhead view of trends.
+ResilientDNS follows a logs-first approach: logs capture behavior, and metrics
+provide low-overhead trend visibility.
 
-## Metrics Counters
+## Metrics HTTP Endpoint
 
-- `queries_total`: Total DNS queries handled by the resolver.
-- `cache_hit_fresh_total`: Count of responses served from fresh cache entries.
-- `cache_hit_stale_total`: Count of responses served from stale cache entries.
-- `cache_miss_total`: Count of cache misses that trigger upstream resolution.
-- `negative_cache_hit_total`: Count of negative cached responses served.
-- `upstream_requests_total`: Count of upstream DNS requests issued.
-- `upstream_fail_total`: Count of upstream errors or timeouts.
-- `swr_refresh_triggered_total`: Count of SWR refresh attempts started.
-- `singleflight_dedup_total`: Count of requests deduplicated by SingleFlight.
-- `cache_entries`: Current number of cache entries (gauge).
-- `evictions_total`: Count of entries evicted due to capacity enforcement.
+The metrics endpoint is a small, dependency-free HTTP server that exposes
+read-only counters for operational insight.
 
-`cache_hit_stale_total` includes both stale responses served immediately from
-cache and "late stale" responses served after an upstream timeout or error.
+For safety, the default bind address is `127.0.0.1`.
+
+### Enabling the endpoint
+
+```bash
+resilientdns \
+  --metrics-host 127.0.0.1 \
+  --metrics-port 9100
+```
+
+### Endpoints
+
+- GET `/metrics`: plain text lines of `name value`, sorted by name
+- GET `/healthz`: returns `ok`
+- Any other path: 404
+
+Example response:
+
+```text
+cache_entries 42
+evictions_total 3
+```
+
+### Metrics Semantics
+
+| Metric | Meaning |
+| --- | --- |
+| `cache_entries` | Current cache size (gauge). |
+| `evictions_total` | Entries evicted due to capacity enforcement. |
+| `dropped_total` | Packets or responses dropped due to capacity/size limits. |
+| `malformed_total` | Malformed DNS packets observed. |
+
+### Design Principles
+
+- Read-only endpoint
+- Fail-safe behavior (errors drop requests without side effects)
+- Low overhead
+- Deterministic output ordering
+- Explicit enablement
+
+### Operational Notes
+
+- Bind to `127.0.0.1` by default
+- Consider firewall rules when exposing externally
+- Use a local scraper or sidecar to collect metrics
