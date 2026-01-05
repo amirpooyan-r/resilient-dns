@@ -48,5 +48,6 @@ def test_inflight_cap_drops_packets():
 
         snap = metrics.snapshot()
         assert snap.get("dropped_total", 0) > 0
+        assert snap.get("dropped_max_inflight_total", 0) > 0
 
     asyncio.run(run())

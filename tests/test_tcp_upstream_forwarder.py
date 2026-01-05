@@ -76,6 +76,7 @@ def test_tcp_upstream_connect_failure():
         assert resp is None
         snap = metrics.snapshot()
         assert snap.get("upstream_tcp_errors_total", 0) == 1
+        assert snap.get("upstream_tcp_connect_errors_total", 0) == 1
 
     asyncio.run(run())
 
@@ -129,6 +130,7 @@ def test_tcp_upstream_oversize_response_dropped():
         assert resp is None
         snap = metrics.snapshot()
         assert snap.get("dropped_total", 0) == 1
+        assert snap.get("dropped_oversize_total", 0) == 1
 
         server.close()
         await server.wait_closed()

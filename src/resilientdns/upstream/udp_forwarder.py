@@ -43,6 +43,7 @@ class UdpUpstreamForwarder:
                 if self._inflight >= self._max_inflight:
                     if self.metrics:
                         self.metrics.inc("dropped_total")
+                        self.metrics.inc("dropped_max_inflight_total")
                     return None
                 self._inflight += 1
         try:
@@ -62,6 +63,11 @@ class UdpUpstreamForwarder:
             s.sendto(wire, (self.config.host, self.config.port))
             data, _ = s.recvfrom(65535)
             return data
+        except TimeoutError:
+            if self.metrics:
+                self.metrics.inc("upstream_udp_errors_total")
+                self.metrics.inc("upstream_udp_timeouts_total")
+            return None
         except Exception:
             if self.metrics:
                 self.metrics.inc("upstream_udp_errors_total")

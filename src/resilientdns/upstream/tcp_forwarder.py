@@ -101,6 +101,7 @@ class TcpUpstreamForwarder:
                 if self._inflight >= self._max_inflight:
                     if self.metrics:
                         self.metrics.inc("dropped_total")
+                        self.metrics.inc("dropped_max_inflight_total")
                     return None
                 self._inflight += 1
         reader = None
@@ -118,8 +119,15 @@ class TcpUpstreamForwarder:
                         asyncio.open_connection(self.config.host, self.config.port),
                         timeout=self.config.connect_timeout_s,
                     )
+                except asyncio.TimeoutError:
+                    error_for_metrics = True
+                    if self.metrics:
+                        self.metrics.inc("upstream_tcp_timeouts_total")
+                    return None
                 except Exception:
                     error_for_metrics = True
+                    if self.metrics:
+                        self.metrics.inc("upstream_tcp_connect_errors_total")
                     return None
             reader, writer = conn
             errored = False
@@ -132,15 +140,25 @@ class TcpUpstreamForwarder:
                     length_bytes = await asyncio.wait_for(
                         reader.readexactly(2), timeout=self.config.read_timeout_s
                     )
+                except asyncio.TimeoutError:
+                    errored = True
+                    error_for_metrics = True
+                    if self.metrics:
+                        self.metrics.inc("upstream_tcp_timeouts_total")
+                    return None
                 except Exception:
                     errored = True
                     error_for_metrics = True
+                    if self.metrics:
+                        self.metrics.inc("upstream_tcp_protocol_errors_total")
                     return None
 
                 msg_len = int.from_bytes(length_bytes, "big")
                 if self.config.max_message_size > 0 and msg_len > self.config.max_message_size:
                     if self.metrics:
                         self.metrics.inc("dropped_total")
+                        self.metrics.inc("dropped_oversize_total")
+                        self.metrics.inc("upstream_tcp_protocol_errors_total")
                     errored = True
                     error_for_metrics = True
                     return None
@@ -149,14 +167,24 @@ class TcpUpstreamForwarder:
                     data = await asyncio.wait_for(
                         reader.readexactly(msg_len), timeout=self.config.read_timeout_s
                     )
+                except asyncio.TimeoutError:
+                    errored = True
+                    error_for_metrics = True
+                    if self.metrics:
+                        self.metrics.inc("upstream_tcp_timeouts_total")
+                    return None
                 except Exception:
                     errored = True
                     error_for_metrics = True
+                    if self.metrics:
+                        self.metrics.inc("upstream_tcp_protocol_errors_total")
                     return None
 
                 if self.config.max_message_size > 0 and len(data) > self.config.max_message_size:
                     if self.metrics:
                         self.metrics.inc("dropped_total")
+                        self.metrics.inc("dropped_oversize_total")
+                        self.metrics.inc("upstream_tcp_protocol_errors_total")
                     errored = True
                     error_for_metrics = True
                     return None
@@ -165,6 +193,8 @@ class TcpUpstreamForwarder:
             except Exception:
                 errored = True
                 error_for_metrics = True
+                if self.metrics:
+                    self.metrics.inc("upstream_tcp_protocol_errors_total")
                 return None
             finally:
                 if writer is not None:

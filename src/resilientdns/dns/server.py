@@ -78,6 +78,7 @@ class UdpDnsServer(asyncio.DatagramProtocol):
         if self.config.max_inflight > 0 and len(self._inflight) >= self.config.max_inflight:
             if self.metrics:
                 self.metrics.inc("dropped_total")
+                self.metrics.inc("dropped_max_inflight_total")
             return
         task = asyncio.create_task(self._handle_datagram(data, addr))
         self._inflight.add(task)
@@ -90,6 +91,7 @@ class UdpDnsServer(asyncio.DatagramProtocol):
             logger.debug("Invalid DNS packet from %s", addr)
             if self.metrics:
                 self.metrics.inc("malformed_total")
+                self.metrics.inc("dropped_malformed_total")
             return
 
         try:
@@ -105,6 +107,7 @@ class UdpDnsServer(asyncio.DatagramProtocol):
                     if len(wire) > self.config.max_udp_payload:
                         if self.metrics:
                             self.metrics.inc("dropped_total")
+                            self.metrics.inc("dropped_oversize_total")
                         return
                 self.transport.sendto(wire, addr)
         except Exception:
@@ -317,6 +320,7 @@ class TcpDnsServer:
                 if self.config.max_message_size > 0 and msg_len > self.config.max_message_size:
                     if self.metrics:
                         self.metrics.inc("dropped_total")
+                        self.metrics.inc("dropped_oversize_total")
                     return
 
                 try:
@@ -331,6 +335,7 @@ class TcpDnsServer:
                 if self.config.max_inflight > 0 and len(self._inflight) >= self.config.max_inflight:
                     if self.metrics:
                         self.metrics.inc("dropped_total")
+                        self.metrics.inc("dropped_max_inflight_total")
                     return
 
                 task = asyncio.create_task(self._handle_request(data, peer, writer))
@@ -348,6 +353,7 @@ class TcpDnsServer:
             logger.debug("Invalid DNS packet from %s", peer)
             if self.metrics:
                 self.metrics.inc("malformed_total")
+                self.metrics.inc("dropped_malformed_total")
             return
 
         try:
@@ -356,6 +362,7 @@ class TcpDnsServer:
             if self.config.max_message_size > 0 and len(wire) > self.config.max_message_size:
                 if self.metrics:
                     self.metrics.inc("dropped_total")
+                    self.metrics.inc("dropped_oversize_total")
                 return
             writer.write(len(wire).to_bytes(2, "big") + wire)
             await writer.drain()

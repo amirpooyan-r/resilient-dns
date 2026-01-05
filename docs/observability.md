@@ -51,6 +51,19 @@ evictions_total 3
 
 A request can be dropped without being an upstream error. Errors imply an upstream attempt was made.
 
+## Reasoned Drop and Error Metrics
+
+These counters are additive and do not replace existing totals.
+
+- `dropped_max_inflight_total`: drops due to admission limits.
+- `dropped_oversize_total`: drops due to oversize requests or responses.
+- `dropped_malformed_total`: drops due to malformed DNS packets.
+- `dropped_policy_total`: drops due to other policy enforcement.
+- `upstream_udp_timeouts_total`: UDP upstream timeouts.
+- `upstream_tcp_timeouts_total`: TCP upstream timeouts.
+- `upstream_tcp_connect_errors_total`: TCP connection failures.
+- `upstream_tcp_protocol_errors_total`: TCP read/write/protocol errors and oversize protocol drops.
+
 ## Tuning Guidance
 
 - Set `max_inflight` to protect upstreams under burst load and to bound concurrent work.
