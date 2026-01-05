@@ -3,8 +3,10 @@ import asyncio
 import contextlib
 import logging
 import signal
+import sys
 
 from resilientdns.cache.memory import CacheConfig, MemoryDnsCache
+from resilientdns.config import Config, build_config, validate_config
 from resilientdns.dns.handler import DnsHandler
 from resilientdns.dns.server import (
     HttpMetricsConfig,
@@ -27,58 +29,62 @@ def _setup_logging(verbose: bool) -> None:
     )
 
 
-async def _run(args) -> None:
+async def _run(cfg: Config) -> None:
     logger = logging.getLogger("resilientdns")
     metrics = Metrics()
-    if args.upstream_transport == "tcp":
+    if cfg.upstream_transport == "tcp":
         upstream = TcpUpstreamForwarder(
             UpstreamTcpConfig(
-                host=args.upstream_host,
-                port=args.upstream_port,
-                connect_timeout_s=args.upstream_timeout,
-                read_timeout_s=args.upstream_timeout,
+                host=cfg.upstream_host,
+                port=cfg.upstream_port,
+                connect_timeout_s=cfg.upstream_timeout_s,
+                read_timeout_s=cfg.upstream_timeout_s,
+                pool_max_conns=cfg.tcp_pool_max_conns,
+                pool_idle_timeout_s=cfg.tcp_pool_idle_timeout_s,
             ),
             metrics=metrics,
         )
     else:
         upstream = UdpUpstreamForwarder(
             UpstreamUdpConfig(
-                host=args.upstream_host,
-                port=args.upstream_port,
-                timeout_s=args.upstream_timeout,
+                host=cfg.upstream_host,
+                port=cfg.upstream_port,
+                timeout_s=cfg.upstream_timeout_s,
+                max_workers=cfg.udp_max_workers,
             ),
             metrics=metrics,
         )
     cache = MemoryDnsCache(
         CacheConfig(
-            serve_stale_max_s=args.serve_stale_max,
-            negative_ttl_s=args.negative_ttl,
+            serve_stale_max_s=cfg.serve_stale_max_s,
+            negative_ttl_s=cfg.negative_ttl_s,
+            max_entries=cfg.cache_max_entries,
         ),
         metrics=metrics,
     )
     handler = DnsHandler(upstream=upstream, cache=cache, metrics=metrics)
     udp_server = UdpDnsServer(
         UdpServerConfig(
-            host=args.listen_host,
-            port=args.listen_port,
-            max_inflight=args.max_inflight,
+            host=cfg.listen_host,
+            port=cfg.listen_port,
+            max_inflight=cfg.max_inflight,
         ),
         handler=handler,
         metrics=metrics,
     )
     tcp_server = TcpDnsServer(
         TcpServerConfig(
-            host=args.listen_host,
-            port=args.listen_port,
-            max_inflight=args.max_inflight,
+            host=cfg.listen_host,
+            port=cfg.listen_port,
+            max_inflight=cfg.max_inflight,
         ),
         handler=handler,
         metrics=metrics,
     )
     metrics_server = None
-    if args.metrics_port > 0:
+    if cfg.metrics_port > 0:
         metrics_server = HttpMetricsServer(
-            HttpMetricsConfig(host=args.metrics_host, port=args.metrics_port), metrics=metrics
+            HttpMetricsConfig(host=cfg.metrics_host, port=cfg.metrics_port), metrics=metrics
         )
     loop = asyncio.get_running_loop()
     stop_fns = [udp_server.stop, tcp_server.stop]
@@ -185,8 +191,15 @@ def main() -> None:
 
     args = parser.parse_args()
 
-    _setup_logging(args.verbose)
-    asyncio.run(_run(args))
+    cfg = build_config(args)
+    try:
+        validate_config(cfg)
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        raise SystemExit(1) from exc
+
+    _setup_logging(cfg.verbose)
+    asyncio.run(_run(cfg))
 
 
 if __name__ == "__main__":
