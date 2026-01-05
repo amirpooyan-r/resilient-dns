@@ -40,6 +40,24 @@ evictions_total 3
 | `dropped_total` | Packets or responses dropped due to capacity/size limits. |
 | `malformed_total` | Malformed DNS packets observed. |
 
+## Upstream Metrics Semantics
+
+- `upstream_requests_total`: number of actual upstream attempts (after inflight admission).
+- `dropped_total`: requests dropped due to policy or saturation (e.g. `max_inflight`, oversize responses). Drops are not upstream failures.
+- `upstream_udp_errors_total`: UDP upstream failures (timeouts or exceptions after an attempt was made).
+- `upstream_tcp_errors_total`: TCP upstream failures (connect, read/write errors, protocol violations, oversize drops).
+- `upstream_tcp_reuses_total`: number of times an existing TCP upstream connection was reused from the pool.
+
+A request can be dropped without being an upstream error. Errors imply an upstream attempt was made.
+
+## Tuning Guidance
+
+- Set `max_inflight` to protect upstreams under burst load and to bound concurrent work.
+- A high `dropped_total` with low `*_errors_total` usually indicates admission policy pressure, not upstream instability.
+- A high `*_errors_total` indicates upstream failures after an attempt was made and should be investigated separately.
+- Use `upstream_tcp_reuses_total` to evaluate TCP pool effectiveness; higher reuse generally means fewer connects.
+- Start with small limits and tune explicitly for unreliable networks to keep failure modes predictable.
+
 ### Design Principles
 
 - Read-only endpoint
