@@ -12,6 +12,7 @@ class UpstreamUdpConfig:
     port: int = 53
     timeout_s: float = 2.0
     max_workers: int = 32
+    max_inflight: int = 0
 
 
 class UdpUpstreamForwarder:
@@ -25,12 +26,32 @@ class UdpUpstreamForwarder:
         self.metrics = metrics
         self._executor = ThreadPoolExecutor(max_workers=config.max_workers)
         self._closed = False
+        if config.max_inflight > 0:
+            self._max_inflight = config.max_inflight
+            self._inflight = 0
+            self._inflight_lock = asyncio.Lock()
+        else:
+            self._max_inflight = 0
+            self._inflight = 0
+            self._inflight_lock = None
 
     async def query(self, wire: bytes) -> bytes | None:
         if self._closed:
             return None
-        loop = asyncio.get_running_loop()
-        return await loop.run_in_executor(self._executor, self._query_blocking, wire)
+        if self._max_inflight > 0 and self._inflight_lock is not None:
+            async with self._inflight_lock:
+                if self._inflight >= self._max_inflight:
+                    if self.metrics:
+                        self.metrics.inc("dropped_total")
+                    return None
+                self._inflight += 1
+        try:
+            loop = asyncio.get_running_loop()
+            return await loop.run_in_executor(self._executor, self._query_blocking, wire)
+        finally:
+            if self._max_inflight > 0 and self._inflight_lock is not None:
+                async with self._inflight_lock:
+                    self._inflight -= 1
 
     def _query_blocking(self, wire: bytes) -> bytes | None:
         if self.metrics:

@@ -57,8 +57,17 @@ def test_tcp_upstream_happy_path():
 
 def test_tcp_upstream_connect_failure():
     async def run():
+        async def handler(reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
+            writer.close()
+            await writer.wait_closed()
+
+        server = await _serve_once("127.0.0.1", 0, handler)
+        host, port = server.sockets[0].getsockname()
+        server.close()
+        await server.wait_closed()
+
         forwarder = TcpUpstreamForwarder(
-            UpstreamTcpConfig(host="127.0.0.1", port=1, connect_timeout_s=0.05),
+            UpstreamTcpConfig(host=host, port=port, connect_timeout_s=0.05),
         )
         wire = DNSRecord.question("example.com", qtype="A").pack()
         resp = await forwarder.query(wire)
@@ -232,6 +241,64 @@ def test_tcp_upstream_closed_connection_not_reused():
         resp2 = await forwarder.query(wire)
         assert resp2 is not None
         assert connection_count == 2
+
+        await forwarder.close()
+        server.close()
+        await server.wait_closed()
+
+    asyncio.run(run())
+
+
+def test_tcp_upstream_max_inflight():
+    async def run():
+        first_received = asyncio.Event()
+        unblock = asyncio.Event()
+        request_count = 0
+
+        async def handler(reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
+            nonlocal request_count
+            try:
+                length = int.from_bytes(await reader.readexactly(2), "big")
+                wire = await reader.readexactly(length)
+                request_count += 1
+                first_received.set()
+                await asyncio.wait_for(unblock.wait(), timeout=0.5)
+                resp = _make_response(wire, "1.2.3.4")
+                writer.write(len(resp).to_bytes(2, "big") + resp)
+                await writer.drain()
+            finally:
+                try:
+                    writer.close()
+                    await writer.wait_closed()
+                except Exception:
+                    pass
+
+        metrics = Metrics()
+        server = await _serve_once("127.0.0.1", 0, handler)
+        host, port = server.sockets[0].getsockname()
+
+        forwarder = TcpUpstreamForwarder(
+            UpstreamTcpConfig(host=host, port=port, max_inflight=1),
+            metrics=metrics,
+        )
+        wire = DNSRecord.question("example.com", qtype="A").pack()
+        task1 = asyncio.create_task(forwarder.query(wire))
+        await asyncio.wait_for(first_received.wait(), timeout=0.2)
+        task2 = asyncio.create_task(forwarder.query(wire))
+        try:
+            resp2 = await asyncio.wait_for(task2, timeout=0.05)
+            assert resp2 is None
+            assert request_count == 1
+            snap = metrics.snapshot()
+            assert snap.get("dropped_total", 0) >= 1
+        finally:
+            unblock.set()
+
+        resp1 = await asyncio.wait_for(task1, timeout=0.2)
+        assert resp1 is not None
+
+        resp3 = await asyncio.wait_for(forwarder.query(wire), timeout=0.2)
+        assert resp3 is not None
 
         await forwarder.close()
         server.close()
