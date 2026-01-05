@@ -117,6 +117,35 @@ class MemoryDnsCache:
         if self.metrics:
             self.metrics.set("cache_entries", len(self._store))
 
+    def stats_snapshot(self) -> dict[str, int]:
+        now = time.monotonic()
+        expired_total = 0
+        stale_servable_total = 0
+        fresh_total = 0
+        negative_total = 0
+        for entry in self._store.values():
+            if entry.expires_at <= now:
+                expired_total += 1
+                if entry.expires_at < now <= entry.stale_until:
+                    stale_servable_total += 1
+            else:
+                fresh_total += 1
+            if entry.rcode != RCODE.NOERROR:
+                negative_total += 1
+
+        evictions_total = 0
+        if self.metrics:
+            evictions_total = self.metrics.snapshot().get("evictions_total", 0)
+
+        return {
+            "entries_total": len(self._store),
+            "expired_total": expired_total,
+            "stale_servable_total": stale_servable_total,
+            "fresh_total": fresh_total,
+            "negative_total": negative_total,
+            "evictions_total": evictions_total,
+        }
+
     def _compute_ttl_seconds(self, resp: DNSRecord) -> int:
         """
         Best-effort TTL extraction:

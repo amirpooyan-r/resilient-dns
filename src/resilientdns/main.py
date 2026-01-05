@@ -89,6 +89,7 @@ async def _run(cfg: Config) -> None:
             HttpMetricsConfig(host=cfg.metrics_host, port=cfg.metrics_port),
             metrics=metrics,
             ready_state=ready_state,
+            cache_stats_provider=cache.stats_snapshot,
         )
     loop = asyncio.get_running_loop()
     stop_fns = [udp_server.stop, tcp_server.stop]

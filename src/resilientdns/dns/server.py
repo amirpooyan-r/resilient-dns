@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 import time
 from dataclasses import dataclass
@@ -132,11 +133,16 @@ class HttpMetricsConfig:
 
 class HttpMetricsServer:
     def __init__(
-        self, config: HttpMetricsConfig, metrics: Metrics, ready_state: ReadyState | None = None
+        self,
+        config: HttpMetricsConfig,
+        metrics: Metrics,
+        ready_state: ReadyState | None = None,
+        cache_stats_provider=None,
     ):
         self.config = config
         self.metrics = metrics
         self.ready_state = ready_state or ReadyState()
+        self.cache_stats_provider = cache_stats_provider
         self.ready = asyncio.Event()
         self._stop_event = asyncio.Event()
         self._server: asyncio.AbstractServer | None = None
@@ -215,6 +221,18 @@ class HttpMetricsServer:
                 await self._send_response(writer, 200, b"ok", "text/plain")
             else:
                 await self._send_response(writer, 503, b"not ready", "text/plain")
+            return
+        if path == "/cache/stats":
+            if self.cache_stats_provider is None:
+                await self._send_response(writer, 404, b"not found", "text/plain")
+                return
+            try:
+                payload = self.cache_stats_provider()
+                body = json.dumps(payload, separators=(",", ":"), sort_keys=False).encode("ascii")
+            except Exception:
+                await self._send_response(writer, 500, b"error", "text/plain")
+                return
+            await self._send_response(writer, 200, body + b"\n", "application/json")
             return
 
         await self._send_response(writer, 404, b"not found", "text/plain")
