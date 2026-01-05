@@ -1,4 +1,5 @@
 import asyncio
+import socket
 import time
 
 from dnslib import QTYPE, RR, A, DNSRecord
@@ -151,5 +152,67 @@ def test_invariant_serve_stale_does_not_block_on_refresh_failure():
         assert snap.get("cache_hit_stale_total", 0) == 1
         assert snap.get("upstream_fail_total", 0) == 1
         assert snap.get("dropped_total", 0) == 0
+
+    asyncio.run(run())
+
+
+def test_no_upstream_attempt_after_max_inflight_drop():
+    async def run():
+        metrics = Metrics()
+        gate = asyncio.Event()
+
+        class CountingUpstream:
+            def __init__(self):
+                self.calls = 0
+
+            async def query(self, wire: bytes):
+                self.calls += 1
+                return None
+
+        upstream = CountingUpstream()
+        cache = MemoryDnsCache(CacheConfig(), metrics=metrics)
+        handler = DnsHandler(upstream=upstream, cache=cache, metrics=metrics)
+
+        original_handle = handler.handle
+
+        async def blocked_handle(request, client_addr):
+            await gate.wait()
+            return await original_handle(request, client_addr)
+
+        handler.handle = blocked_handle  # type: ignore[assignment]
+
+        server = UdpDnsServer(
+            UdpServerConfig(host="127.0.0.1", port=0, max_inflight=1),
+            handler=handler,
+            metrics=metrics,
+        )
+        server_task = asyncio.create_task(server.run())
+        await server.ready.wait()
+
+        assert server.transport is not None
+        host, port = server.transport.get_extra_info("sockname")
+        payload = DNSRecord.question("example.com", qtype="A").pack()
+
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            sock.sendto(payload, (host, port))
+            await asyncio.sleep(0)
+            before = metrics.snapshot().get("upstream_requests_total", 0)
+            sock.sendto(payload, (host, port))
+            await asyncio.sleep(0)
+            after = metrics.snapshot().get("upstream_requests_total", 0)
+        finally:
+            gate.set()
+            if server._inflight:
+                await asyncio.gather(*list(server._inflight), return_exceptions=True)
+            server.stop()
+            await server_task
+            sock.close()
+
+        snap = metrics.snapshot()
+        assert snap.get("dropped_total", 0) >= 1
+        assert snap.get("dropped_max_inflight_total", 0) >= 1
+        assert after == before
+        assert upstream.calls == 1
 
     asyncio.run(run())
