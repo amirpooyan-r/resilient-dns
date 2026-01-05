@@ -56,6 +56,22 @@ ResilientDNS is designed to:
 - SingleFlight deduplication (misses + refresh)
 - Lightweight in-process metrics counters
 
+## Upstream behavior
+
+- Supports UDP and TCP upstream forwarding (explicit selection, no guessing)
+- CLI flag: `--upstream-transport` `udp|tcp` (default: `udp`)
+- TCP upstream uses safe connection reuse (pool) with one in-flight per connection (no pipelining)
+- Upstream concurrency limits (`max_inflight`) are fail-fast (no queuing)
+- No automatic UDP↔TCP fallback and no retry storms
+- Failures preserve serve-stale / SWR semantics
+
+```bash
+resilientdns \
+  --upstream-transport tcp \
+  --upstream-host 1.1.1.1 \
+  --upstream-port 53
+```
+
 ## Configuration
 
 - `max_entries`: Maximum cache entries (0 = unlimited)
@@ -66,6 +82,22 @@ ResilientDNS is designed to:
 
 - `cache_entries`: Current number of cache entries (gauge)
 - `evictions_total`: Entries evicted due to capacity enforcement
+
+## Observability
+
+ResilientDNS exposes a read-only metrics HTTP endpoint. Metrics are deterministic and low overhead.
+
+- Endpoints: `/metrics`, `/healthz`
+- Drops are distinct from upstream errors
+- Metrics semantics are documented
+- `docs/observability.md`
+- `docs/upstream.md`
+
+```bash
+resilientdns \
+  --metrics-host 127.0.0.1 \
+  --metrics-port 9100
+```
 
 ---
 
