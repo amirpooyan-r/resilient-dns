@@ -146,6 +146,12 @@ class MemoryDnsCache:
             "evictions_total": evictions_total,
         }
 
+    def clear(self) -> None:
+        self._store.clear()
+        if self.metrics:
+            self.metrics.set("cache_entries", 0)
+            self.metrics.inc("cache_clears_total")
+
     def _compute_ttl_seconds(self, resp: DNSRecord) -> int:
         """
         Best-effort TTL extraction:

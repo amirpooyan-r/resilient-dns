@@ -30,6 +30,32 @@ def _setup_logging(verbose: bool) -> None:
     )
 
 
+def _register_signal_handlers(loop, stop_fns, cache_clear_fn, logger) -> None:
+    def stop_all() -> None:
+        for fn in stop_fns:
+            fn()
+
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        try:
+            loop.add_signal_handler(sig, stop_all)
+        except NotImplementedError:
+            pass
+
+    if hasattr(signal, "SIGHUP"):
+        try:
+            loop.add_signal_handler(
+                signal.SIGHUP,
+                lambda: _handle_sighup(cache_clear_fn, logger),
+            )
+        except NotImplementedError:
+            pass
+
+
+def _handle_sighup(cache_clear_fn, logger) -> None:
+    cache_clear_fn()
+    logger.info("Cache cleared (SIGHUP)")
+
+
 async def _run(cfg: Config) -> None:
     logger = logging.getLogger("resilientdns")
     metrics = Metrics()
@@ -95,11 +121,7 @@ async def _run(cfg: Config) -> None:
     stop_fns = [udp_server.stop, tcp_server.stop]
     if metrics_server:
         stop_fns.append(metrics_server.stop)
-    for sig in (signal.SIGINT, signal.SIGTERM):
-        try:
-            loop.add_signal_handler(sig, lambda: [fn() for fn in stop_fns])
-        except NotImplementedError:
-            pass
+    _register_signal_handlers(loop, stop_fns, cache.clear, logger)
 
     async def wait_ready(server_task: asyncio.Task, ready: asyncio.Event) -> None:
         ready_task = asyncio.create_task(ready.wait())
