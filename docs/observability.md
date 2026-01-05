@@ -23,7 +23,8 @@ resilientdns \
 - GET `/metrics`: plain text lines of `name value`, sorted by name
 - GET `/healthz`: returns `ok`
 - GET `/readyz`: returns `ok` when ready; otherwise 503
-- Any other path: 404
+- GET `/cache/stats`: JSON cache statistics
+- Any other path: 404 not found
 
 Example response:
 
@@ -81,6 +82,12 @@ These counters are additive and do not replace existing totals.
 
 - `resilientdns_build_info{version="<package_version>"}`: constant build label for the running version.
 - `resilientdns_uptime_seconds`: process uptime in seconds (monotonic).
+
+## Cache Clear (SIGHUP)
+
+- Sending `SIGHUP` clears the in-memory cache without stopping the server.
+- An INFO log line is emitted on clear.
+- `cache_clears_total` increments on each clear.
 
 ### Design Principles
 
