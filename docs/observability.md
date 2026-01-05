@@ -22,6 +22,7 @@ resilientdns \
 
 - GET `/metrics`: plain text lines of `name value`, sorted by name
 - GET `/healthz`: returns `ok`
+- GET `/readyz`: returns `ok` when ready; otherwise 503
 - Any other path: 404
 
 Example response:
@@ -57,6 +58,16 @@ A request can be dropped without being an upstream error. Errors imply an upstre
 - A high `*_errors_total` indicates upstream failures after an attempt was made and should be investigated separately.
 - Use `upstream_tcp_reuses_total` to evaluate TCP pool effectiveness; higher reuse generally means fewer connects.
 - Start with small limits and tune explicitly for unreliable networks to keep failure modes predictable.
+
+## Readiness vs Liveness
+
+- `/healthz` is liveness only and returns 200 if the process is running.
+- `/readyz` is readiness and returns 200 only after DNS listeners and the metrics server are ready.
+
+## Additional Metrics
+
+- `resilientdns_build_info{version="<package_version>"}`: constant build label for the running version.
+- `resilientdns_uptime_seconds`: process uptime in seconds (monotonic).
 
 ### Design Principles
 

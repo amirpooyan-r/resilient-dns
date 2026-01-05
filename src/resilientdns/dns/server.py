@@ -1,12 +1,26 @@
 import asyncio
 import logging
+import time
 from dataclasses import dataclass
+from importlib import metadata
 
 from dnslib import DNSRecord
 
 from resilientdns.metrics import Metrics
 
 logger = logging.getLogger("resilientdns")
+_PROCESS_START_MONOTONIC = time.monotonic()
+
+
+class ReadyState:
+    def __init__(self) -> None:
+        self._event = asyncio.Event()
+
+    def set_ready(self) -> None:
+        self._event.set()
+
+    def is_ready(self) -> bool:
+        return self._event.is_set()
 
 
 @dataclass(frozen=True)
@@ -117,12 +131,24 @@ class HttpMetricsConfig:
 
 
 class HttpMetricsServer:
-    def __init__(self, config: HttpMetricsConfig, metrics: Metrics):
+    def __init__(
+        self, config: HttpMetricsConfig, metrics: Metrics, ready_state: ReadyState | None = None
+    ):
         self.config = config
         self.metrics = metrics
+        self.ready_state = ready_state or ReadyState()
         self.ready = asyncio.Event()
         self._stop_event = asyncio.Event()
         self._server: asyncio.AbstractServer | None = None
+        self._build_info_line = self._build_info()
+
+    def _build_info(self) -> str:
+        try:
+            version = metadata.version("resilientdns")
+        except Exception:
+            version = "unknown"
+        safe_version = version.replace('"', "_")
+        return f'resilientdns_build_info{{version="{safe_version}"}} 1'
 
     async def run(self) -> None:
         self._server = await asyncio.start_server(
@@ -175,11 +201,20 @@ class HttpMetricsServer:
         if path == "/metrics":
             snapshot = self.metrics.snapshot()
             lines = [f"{k} {snapshot[k]}" for k in sorted(snapshot)]
+            uptime_s = max(0.0, time.monotonic() - _PROCESS_START_MONOTONIC)
+            lines.append(self._build_info_line)
+            lines.append(f"resilientdns_uptime_seconds {uptime_s:.3f}")
             body = ("\n".join(lines) + "\n").encode("ascii")
             await self._send_response(writer, 200, body, "text/plain")
             return
         if path == "/healthz":
             await self._send_response(writer, 200, b"ok", "text/plain")
+            return
+        if path == "/readyz":
+            if self.ready_state.is_ready():
+                await self._send_response(writer, 200, b"ok", "text/plain")
+            else:
+                await self._send_response(writer, 503, b"not ready", "text/plain")
             return
 
         await self._send_response(writer, 404, b"not found", "text/plain")
@@ -187,7 +222,12 @@ class HttpMetricsServer:
     async def _send_response(
         self, writer: asyncio.StreamWriter, status_code: int, body: bytes, content_type: str
     ) -> None:
-        reason = "OK" if status_code == 200 else "Not Found"
+        if status_code == 200:
+            reason = "OK"
+        elif status_code == 503:
+            reason = "Service Unavailable"
+        else:
+            reason = "Not Found"
         headers = [
             f"HTTP/1.1 {status_code} {reason}",
             f"Content-Type: {content_type}",

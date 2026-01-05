@@ -87,7 +87,7 @@ resilientdns \
 
 ResilientDNS exposes a read-only metrics HTTP endpoint. Metrics are deterministic and low overhead.
 
-- Endpoints: `/metrics`, `/healthz`
+- Endpoints: `/metrics`, `/healthz`, `/readyz`
 - Drops are distinct from upstream errors
 - Metrics semantics are documented
 - `docs/observability.md`

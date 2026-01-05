@@ -11,6 +11,7 @@ from resilientdns.dns.handler import DnsHandler
 from resilientdns.dns.server import (
     HttpMetricsConfig,
     HttpMetricsServer,
+    ReadyState,
     TcpDnsServer,
     TcpServerConfig,
     UdpDnsServer,
@@ -32,6 +33,7 @@ def _setup_logging(verbose: bool) -> None:
 async def _run(cfg: Config) -> None:
     logger = logging.getLogger("resilientdns")
     metrics = Metrics()
+    ready_state = ReadyState()
     if cfg.upstream_transport == "tcp":
         upstream = TcpUpstreamForwarder(
             UpstreamTcpConfig(
@@ -84,7 +86,9 @@ async def _run(cfg: Config) -> None:
     metrics_server = None
     if cfg.metrics_port > 0:
         metrics_server = HttpMetricsServer(
-            HttpMetricsConfig(host=cfg.metrics_host, port=cfg.metrics_port), metrics=metrics
+            HttpMetricsConfig(host=cfg.metrics_host, port=cfg.metrics_port),
+            metrics=metrics,
+            ready_state=ready_state,
         )
     loop = asyncio.get_running_loop()
     stop_fns = [udp_server.stop, tcp_server.stop]
@@ -120,6 +124,7 @@ async def _run(cfg: Config) -> None:
         await wait_ready(tcp_task, tcp_server.ready)
         if metrics_server and metrics_task:
             await wait_ready(metrics_task, metrics_server.ready)
+        ready_state.set_ready()
         reporter_task = asyncio.create_task(periodic_stats_reporter(metrics))
         tasks = [udp_task, tcp_task]
         if metrics_task:
