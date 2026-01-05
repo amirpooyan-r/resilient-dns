@@ -63,6 +63,8 @@ class UdpUpstreamForwarder:
             data, _ = s.recvfrom(65535)
             return data
         except Exception:
+            if self.metrics:
+                self.metrics.inc("upstream_udp_errors_total")
             return None
         finally:
             s.close()

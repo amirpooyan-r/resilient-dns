@@ -66,12 +66,16 @@ def test_tcp_upstream_connect_failure():
         server.close()
         await server.wait_closed()
 
+        metrics = Metrics()
         forwarder = TcpUpstreamForwarder(
             UpstreamTcpConfig(host=host, port=port, connect_timeout_s=0.05),
+            metrics=metrics,
         )
         wire = DNSRecord.question("example.com", qtype="A").pack()
         resp = await forwarder.query(wire)
         assert resp is None
+        snap = metrics.snapshot()
+        assert snap.get("upstream_tcp_errors_total", 0) == 1
 
     asyncio.run(run())
 
@@ -155,8 +159,10 @@ def test_tcp_upstream_reuses_connection():
         server = await _serve_once("127.0.0.1", 0, handler)
         host, port = server.sockets[0].getsockname()
 
+        metrics = Metrics()
         forwarder = TcpUpstreamForwarder(
             UpstreamTcpConfig(host=host, port=port),
+            metrics=metrics,
         )
         wire = DNSRecord.question("example.com", qtype="A").pack()
         resp1 = await forwarder.query(wire)
@@ -164,6 +170,8 @@ def test_tcp_upstream_reuses_connection():
         assert resp1 is not None
         assert resp2 is not None
         assert connection_count == 1
+        snap = metrics.snapshot()
+        assert snap.get("upstream_tcp_reuses_total", 0) == 1
 
         await forwarder.close()
         server.close()

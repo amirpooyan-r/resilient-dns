@@ -71,6 +71,8 @@ class TcpUpstreamForwarder:
                 if now - conn.last_used_s > self.config.pool_idle_timeout_s:
                     await self._close_writer(conn.writer)
                     continue
+                if self.metrics:
+                    self.metrics.inc("upstream_tcp_reuses_total")
                 return conn.reader, conn.writer
         return None
 
@@ -102,6 +104,7 @@ class TcpUpstreamForwarder:
         reader = None
         writer = None
         errored = True
+        error_for_metrics = False
         try:
             if self.metrics:
                 self.metrics.inc("upstream_requests_total")
@@ -114,6 +117,7 @@ class TcpUpstreamForwarder:
                         timeout=self.config.connect_timeout_s,
                     )
                 except Exception:
+                    error_for_metrics = True
                     return None
             reader, writer = conn
             errored = False
@@ -128,6 +132,7 @@ class TcpUpstreamForwarder:
                     )
                 except Exception:
                     errored = True
+                    error_for_metrics = True
                     return None
 
                 msg_len = int.from_bytes(length_bytes, "big")
@@ -135,6 +140,7 @@ class TcpUpstreamForwarder:
                     if self.metrics:
                         self.metrics.inc("dropped_total")
                     errored = True
+                    error_for_metrics = True
                     return None
 
                 try:
@@ -143,17 +149,20 @@ class TcpUpstreamForwarder:
                     )
                 except Exception:
                     errored = True
+                    error_for_metrics = True
                     return None
 
                 if self.config.max_message_size > 0 and len(data) > self.config.max_message_size:
                     if self.metrics:
                         self.metrics.inc("dropped_total")
                     errored = True
+                    error_for_metrics = True
                     return None
 
                 return data
             except Exception:
                 errored = True
+                error_for_metrics = True
                 return None
             finally:
                 if writer is not None:
@@ -162,6 +171,8 @@ class TcpUpstreamForwarder:
                     else:
                         await self._release_to_pool(reader, writer)
         finally:
+            if error_for_metrics and self.metrics:
+                self.metrics.inc("upstream_tcp_errors_total")
             if self._max_inflight > 0 and self._inflight_lock is not None:
                 async with self._inflight_lock:
                     self._inflight -= 1

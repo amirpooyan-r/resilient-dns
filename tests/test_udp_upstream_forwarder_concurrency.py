@@ -81,3 +81,35 @@ def test_udp_upstream_max_inflight():
         transport.close()
 
     asyncio.run(run())
+
+
+def test_udp_upstream_error_metric():
+    async def run():
+        class DropProtocol(asyncio.DatagramProtocol):
+            def connection_made(self, transport: asyncio.DatagramTransport) -> None:
+                self.transport = transport
+
+            def datagram_received(self, data: bytes, addr) -> None:
+                return
+
+        loop = asyncio.get_running_loop()
+        transport, _ = await loop.create_datagram_endpoint(
+            DropProtocol, local_addr=("127.0.0.1", 0)
+        )
+        host, port = transport.get_extra_info("sockname")[:2]
+
+        metrics = Metrics()
+        forwarder = UdpUpstreamForwarder(
+            UpstreamUdpConfig(host=host, port=port, timeout_s=0.05),
+            metrics=metrics,
+        )
+        wire = DNSRecord.question("example.com", qtype="A").pack()
+        resp = await asyncio.wait_for(forwarder.query(wire), timeout=0.2)
+        assert resp is None
+        snap = metrics.snapshot()
+        assert snap.get("upstream_udp_errors_total", 0) == 1
+
+        forwarder.close()
+        transport.close()
+
+    asyncio.run(run())
