@@ -257,6 +257,16 @@ def test_tcp_upstream_closed_connection_not_reused():
     asyncio.run(run())
 
 
+def test_tcp_upstream_query_after_close_returns_none():
+    async def run():
+        forwarder = TcpUpstreamForwarder(UpstreamTcpConfig())
+        await forwarder.close()
+        resp = await forwarder.query(b"\x00\x01")
+        assert resp is None
+
+    asyncio.run(run())
+
+
 def test_tcp_upstream_max_inflight():
     async def run():
         first_received = asyncio.Event()

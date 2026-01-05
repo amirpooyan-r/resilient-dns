@@ -148,7 +148,9 @@ async def _run(cfg: Config) -> None:
                     await task
         close_fn = getattr(upstream, "close", None)
         if callable(close_fn):
-            close_fn()
+            result = close_fn()
+            if asyncio.iscoroutine(result):
+                await result
         snapshot = metrics.snapshot()
         if any(snapshot.values()):
             logger.info(format_stats(snapshot))

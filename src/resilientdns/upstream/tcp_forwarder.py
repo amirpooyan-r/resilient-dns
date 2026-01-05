@@ -94,6 +94,8 @@ class TcpUpstreamForwarder:
             )
 
     async def query(self, wire: bytes) -> bytes | None:
+        if self._closed:
+            return None
         if self._max_inflight > 0 and self._inflight_lock is not None:
             async with self._inflight_lock:
                 if self._inflight >= self._max_inflight:
