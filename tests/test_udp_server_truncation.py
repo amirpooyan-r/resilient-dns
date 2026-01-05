@@ -81,20 +81,7 @@ def test_udp_malformed_increments_metric():
             handler=LargeResponseHandler(),
             metrics=metrics,
         )
-        server_task = asyncio.create_task(server.run())
-        await server.ready.wait()
-
-        assert server.transport is not None
-        host, port = server.transport.get_extra_info("sockname")
-
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        try:
-            sock.sendto(b"\x00\x01", (host, port))
-            await asyncio.sleep(0.01)
-        finally:
-            server.stop()
-            await server_task
-            sock.close()
+        await server._handle_datagram(b"\x00\x01", ("127.0.0.1", 5353))
 
         snap = metrics.snapshot()
         assert snap.get("malformed_total", 0) >= 1

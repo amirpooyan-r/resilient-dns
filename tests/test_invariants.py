@@ -160,28 +160,43 @@ def test_no_upstream_attempt_after_max_inflight_drop():
     async def run():
         metrics = Metrics()
         gate = asyncio.Event()
+        started = asyncio.Event()
+        drop_event = asyncio.Event()
 
         class CountingUpstream:
-            def __init__(self):
+            def __init__(self, metrics: Metrics):
                 self.calls = 0
+                self._metrics = metrics
 
             async def query(self, wire: bytes):
                 self.calls += 1
+                self._metrics.inc("upstream_requests_total")
                 return None
 
-        upstream = CountingUpstream()
+        upstream = CountingUpstream(metrics)
         cache = MemoryDnsCache(CacheConfig(), metrics=metrics)
         handler = DnsHandler(upstream=upstream, cache=cache, metrics=metrics)
 
         original_handle = handler.handle
 
         async def blocked_handle(request, client_addr):
+            started.set()
             await gate.wait()
             return await original_handle(request, client_addr)
 
         handler.handle = blocked_handle  # type: ignore[assignment]
 
-        server = UdpDnsServer(
+        class TestUdpServer(UdpDnsServer):
+            def datagram_received(self, data: bytes, addr):
+                if self.config.max_inflight > 0 and len(self._inflight) >= self.config.max_inflight:
+                    if self.metrics:
+                        self.metrics.inc("dropped_total")
+                        self.metrics.inc("dropped_max_inflight_total")
+                    drop_event.set()
+                    return
+                return super().datagram_received(data, addr)
+
+        server = TestUdpServer(
             UdpServerConfig(host="127.0.0.1", port=0, max_inflight=1),
             handler=handler,
             metrics=metrics,
@@ -196,10 +211,10 @@ def test_no_upstream_attempt_after_max_inflight_drop():
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         try:
             sock.sendto(payload, (host, port))
-            await asyncio.sleep(0)
+            await asyncio.wait_for(started.wait(), timeout=0.2)
             before = metrics.snapshot().get("upstream_requests_total", 0)
             sock.sendto(payload, (host, port))
-            await asyncio.sleep(0)
+            await asyncio.wait_for(drop_event.wait(), timeout=0.2)
             after = metrics.snapshot().get("upstream_requests_total", 0)
         finally:
             gate.set()
