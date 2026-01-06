@@ -94,7 +94,7 @@ class RelayUpstreamForwarder:
             raise
         except aiohttp.ClientError:
             if self.metrics:
-                self.metrics.inc("upstream_relay_protocol_errors_total")
+                self.metrics.inc("upstream_relay_client_errors_total")
             return None
 
         if len(raw) > limits.max_response_bytes:

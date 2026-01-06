@@ -112,3 +112,21 @@ async def test_relay_forwarder_timeout(fake_relay_server):
 
     snap = metrics.snapshot()
     assert snap.get("upstream_relay_timeouts_total", 0) == 1
+
+
+@pytest.mark.asyncio
+async def test_relay_forwarder_client_error_metrics():
+    metrics = Metrics()
+    forwarder = RelayUpstreamForwarder(
+        relay_cfg=RelayConfig(base_url="http://127.0.0.1:invalid"),
+        metrics=metrics,
+        timeout_s=0.5,
+    )
+    try:
+        resp = await forwarder.query(b"query", request_id="req-6")
+    finally:
+        await forwarder.close()
+
+    assert resp is None
+    snap = metrics.snapshot()
+    assert snap.get("upstream_relay_client_errors_total", 0) == 1
