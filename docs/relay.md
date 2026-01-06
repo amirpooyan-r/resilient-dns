@@ -105,18 +105,32 @@ Rules:
 - No secrets MUST be returned
 - No state or persistence required
 
-### 3.3 Startup Check Behavior (Non-Normative Guidance)
+### 3.3 Client Startup Validation
+
+Startup checks are a control-plane validation step and MUST NOT affect runtime
+determinism. Relay responses MAY be gzip-compressed; clients should accept gzip
+for both `/v{n}/info` and `/v{n}/dns`.
 
 When relay mode is enabled, clients MAY call GET /v{n}/info once at startup.
-Validation is OPTIONAL but RECOMMENDED for user-facing deployments. For
-home/small office UX, clients SHOULD validate HTTP reachability, protocol
+Validation is OPTIONAL but RECOMMENDED for user-facing deployments. Supported
+modes are:
+
+- require: startup validation must pass or the process exits
+- warn: log a warning and continue
+- off: skip startup validation entirely
+
+For home/small office UX, clients SHOULD validate HTTP reachability, protocol
 version (v == 1 for this spec), auth acceptance (401/403 means misconfigured
-token), and advertised limits if provided. Startup checks are control-plane
-only; runtime queries always use POST /v{n}/dns.
+token), and advertised limits if provided. Clients SHOULD fail startup if
+configured limits exceed relay limits (e.g. max_items, max_request_bytes).
+Startup checks are control-plane only; runtime queries always use POST /v{n}/dns.
 
 Clients MUST use the same path version for /info as for /dns. Clients MUST NOT
 probe multiple versions by default. Startup checks MUST NOT affect runtime
 determinism, and relays MUST remain stateless regardless of validation.
+
+Errors SHOULD be explicit and actionable (auth failure, version mismatch,
+invalid JSON, timeout, or limit incompatibility).
 
 ## 4. Request Format (JSON, versioned)
 

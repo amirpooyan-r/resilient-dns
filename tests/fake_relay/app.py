@@ -7,7 +7,13 @@ from typing import Any
 
 from aiohttp import web
 
-from .types import DnsHandlerMode, DnsItemResult, ParseErrorMode, RelayScript
+from .types import (
+    DnsHandlerMode,
+    DnsItemResult,
+    InfoHandlerMode,
+    ParseErrorMode,
+    RelayScript,
+)
 
 SCRIPT_KEY = web.AppKey("relay_script", RelayScript)
 CAPTURE_KEY = web.AppKey("relay_capture", dict[str, Any])
@@ -98,6 +104,10 @@ def _coerce_results(script: RelayScript, data: dict[str, Any]) -> list[DnsItemRe
 async def handle_info(request: web.Request) -> web.Response:
     script: RelayScript = request.app[SCRIPT_KEY]
     _capture_request(script, request, b"", None)
+
+    if script.info_handler_mode == InfoHandlerMode.TIMEOUT:
+        # Deterministic timeout: the test controls when/if the event is set.
+        await script.info_timeout_event.wait()
 
     if _auth_required(script, request):
         return web.Response(status=401)

@@ -77,8 +77,8 @@ def validate_config(cfg: Config) -> None:
     if cfg.metrics_port != 0 and (cfg.metrics_port < 1 or cfg.metrics_port > 65535):
         raise ValueError("metrics_port must be 0 or between 1 and 65535")
 
-    if cfg.upstream_transport not in ("udp", "tcp"):
-        raise ValueError("upstream_transport must be 'udp' or 'tcp'")
+    if cfg.upstream_transport not in ("udp", "tcp", "relay"):
+        raise ValueError("upstream_transport must be 'udp', 'tcp', or 'relay'")
 
     if cfg.upstream_timeout_s <= 0:
         raise ValueError("upstream_timeout_s must be > 0")
@@ -108,3 +108,9 @@ def validate_config(cfg: Config) -> None:
             max_response_bytes=cfg.relay_max_response_bytes,
         )
         validate_limits(limits)
+
+    if cfg.upstream_transport == "relay":
+        if not cfg.relay_base_url:
+            raise ValueError("relay_base_url is required when upstream_transport=relay")
+        if cfg.relay_api_version < 1:
+            raise ValueError("relay_api_version must be >= 1")

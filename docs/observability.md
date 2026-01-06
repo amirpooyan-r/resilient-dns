@@ -49,6 +49,11 @@ evictions_total 3
 - `upstream_udp_errors_total`: UDP upstream failures (timeouts or exceptions after an attempt was made).
 - `upstream_tcp_errors_total`: TCP upstream failures (connect, read/write errors, protocol violations, oversize drops).
 - `upstream_tcp_reuses_total`: number of times an existing TCP upstream connection was reused from the pool.
+- `upstream_relay_requests_total`: relay upstream HTTP requests.
+- `upstream_relay_http_4xx_total`: relay HTTP 4xx responses.
+- `upstream_relay_http_5xx_total`: relay HTTP 5xx responses.
+- `upstream_relay_timeouts_total`: relay timeouts.
+- `upstream_relay_protocol_errors_total`: relay response parse/protocol failures.
 
 A request can be dropped without being an upstream error. Errors imply an upstream attempt was made.
 

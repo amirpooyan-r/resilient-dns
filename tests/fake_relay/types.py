@@ -12,6 +12,11 @@ class DnsHandlerMode(str, Enum):
     TIMEOUT = "timeout"
 
 
+class InfoHandlerMode(str, Enum):
+    NORMAL = "normal"
+    TIMEOUT = "timeout"
+
+
 class ParseErrorMode(str, Enum):
     RETURN_400 = "return_400"
     RETURN_INVALID_JSON_200 = "return_invalid_json_200"
@@ -60,6 +65,7 @@ DnsResultsFactory = Callable[[dict[str, Any]], list[DnsItemResult]]
 class RelayScript:
     expected_token: str | None = None
     info_response: InfoResponse | None = None
+    info_handler_mode: InfoHandlerMode = InfoHandlerMode.NORMAL
     dns_handler_mode: DnsHandlerMode = DnsHandlerMode.NORMAL
     next_dns_results: list[DnsItemResult] | DnsResultsFactory | None = None
     force_http_status: int | None = None
@@ -68,6 +74,7 @@ class RelayScript:
     force_protocol_v: int | None = None
     enforce_limits: bool = False
     limits: RelayLimits = field(default_factory=RelayLimits)
+    info_timeout_event: asyncio.Event = field(default_factory=asyncio.Event)
     timeout_event: asyncio.Event = field(default_factory=asyncio.Event)
 
     last_request_headers: dict[str, str] | None = None

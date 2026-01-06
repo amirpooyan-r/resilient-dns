@@ -18,6 +18,8 @@ from resilientdns.dns.server import (
     UdpServerConfig,
 )
 from resilientdns.metrics import Metrics, format_stats, periodic_stats_reporter
+from resilientdns.relay_startup_check import run_relay_startup_check
+from resilientdns.relay_types import RelayConfig, RelayLimits
 from resilientdns.upstream.tcp_forwarder import TcpUpstreamForwarder, UpstreamTcpConfig
 from resilientdns.upstream.udp_forwarder import UdpUpstreamForwarder, UpstreamUdpConfig
 
@@ -56,11 +58,35 @@ def _handle_sighup(cache_clear_fn, logger) -> None:
     logger.info("Cache cleared (SIGHUP)")
 
 
+def _build_relay_config(cfg: Config) -> RelayConfig:
+    return RelayConfig(
+        base_url=cfg.relay_base_url or "",
+        api_version=cfg.relay_api_version,
+        auth_token=cfg.relay_auth_token,
+        startup_check=cfg.relay_startup_check,
+        limits=RelayLimits(
+            max_items=cfg.relay_max_items,
+            max_request_bytes=cfg.relay_max_request_bytes,
+            per_item_max_wire_bytes=cfg.relay_per_item_max_wire_bytes,
+            max_response_bytes=cfg.relay_max_response_bytes,
+        ),
+    )
+
+
 async def _run(cfg: Config) -> None:
     logger = logging.getLogger("resilientdns")
     metrics = Metrics()
     ready_state = ReadyState()
-    if cfg.upstream_transport == "tcp":
+    if cfg.upstream_transport == "relay":
+        relay_cfg = _build_relay_config(cfg)
+        from resilientdns.relay_forwarder import RelayUpstreamForwarder
+
+        upstream = RelayUpstreamForwarder(
+            relay_cfg=relay_cfg,
+            metrics=metrics,
+            timeout_s=cfg.upstream_timeout_s,
+        )
+    elif cfg.upstream_transport == "tcp":
         upstream = TcpUpstreamForwarder(
             UpstreamTcpConfig(
                 host=cfg.upstream_host,
@@ -195,7 +221,7 @@ def main() -> None:
     # Upstream DNS (temporary)
     parser.add_argument(
         "--upstream-transport",
-        choices=["udp", "tcp"],
+        choices=["udp", "tcp", "relay"],
         default="udp",
     )
     parser.add_argument("--upstream-host", default="1.1.1.1")
@@ -243,6 +269,19 @@ def main() -> None:
         raise SystemExit(1) from exc
 
     _setup_logging(cfg.verbose)
+    logger = logging.getLogger("resilientdns")
+
+    if cfg.upstream_transport == "relay" and cfg.relay_startup_check != "off":
+        relay_cfg = _build_relay_config(cfg)
+        asyncio.run(
+            run_relay_startup_check(
+                relay_cfg=relay_cfg,
+                timeout_s=cfg.upstream_timeout_s,
+                client_limits=relay_cfg.limits,
+                mode=cfg.relay_startup_check,
+                logger=logger,
+            )
+        )
     asyncio.run(_run(cfg))
 
 

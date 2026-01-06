@@ -163,7 +163,8 @@ Upstream DNS Resolver
 
 ## Relay Upstream
 
-ResilientDNS supports a **Relay upstream**. A Relay is a remote HTTP batch DNS
+ResilientDNS supports a **Relay upstream** as an explicit upstream transport option.
+A Relay is a remote HTTP batch DNS
 resolver belonging to the ResilientDNS project. Relays may be:
 
 - Serverless (e.g., Cloudflare Worker)
@@ -171,6 +172,9 @@ resolver belonging to the ResilientDNS project. Relays may be:
 
 The Relay protocol is defined in `docs/relay.md`. Relay implementations may
 live in separate repositories.
+
+Relay startup validation uses `GET /v1/info` and supports require/warn/off
+modes for explicit failure handling.
 
 “The Relay is a logical component of ResilientDNS and is not a network gateway, router, NAT, or VPN device.”
 ---

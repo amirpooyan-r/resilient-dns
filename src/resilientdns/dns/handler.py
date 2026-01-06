@@ -125,7 +125,12 @@ class DnsHandler:
     async def _resolve_upstream(
         self, request: DNSRecord, key: tuple[str, int], qname: str, qtype_name: str
     ) -> DNSRecord | None:
-        resp_bytes = await self._query_upstream(request.pack(), qname, qtype_name)
+        resp_bytes = await self._query_upstream(
+            request.pack(),
+            qname,
+            qtype_name,
+            request_id=str(request.header.id),
+        )
         if resp_bytes is None:
             return None
 
@@ -160,7 +165,13 @@ class DnsHandler:
             logger.exception("REFRESH BUILD FAIL %s %s", qname, qtype_name)
             return None
 
-        resp_bytes = await self._query_upstream(new_req.pack(), qname, qtype_name)
+        refresh_id = f"refresh-{qname}-{qtype_name}"
+        resp_bytes = await self._query_upstream(
+            new_req.pack(),
+            qname,
+            qtype_name,
+            request_id=refresh_id,
+        )
         if resp_bytes is None:
             return None
 
@@ -188,9 +199,21 @@ class DnsHandler:
         except Exception:
             logger.exception("REFRESH ERROR %s %s", qname, qtype_name)
 
-    async def _query_upstream(self, wire: bytes, qname: str, qtype_name: str) -> bytes | None:
+    async def _query_upstream(
+        self,
+        wire: bytes,
+        qname: str,
+        qtype_name: str,
+        request_id: str | None = None,
+    ) -> bytes | None:
         try:
-            resp = await self.upstream.query(wire)
+            if request_id is None:
+                resp = await self.upstream.query(wire)
+            else:
+                try:
+                    resp = await self.upstream.query(wire, request_id=request_id)
+                except TypeError:
+                    resp = await self.upstream.query(wire)
         except asyncio.TimeoutError:
             logger.warning("UPSTREAM TIMEOUT %s %s", qname, qtype_name)
             resp = None
