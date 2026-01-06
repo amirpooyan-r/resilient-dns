@@ -19,6 +19,14 @@ def _args() -> argparse.Namespace:
         serve_stale_max=300,
         negative_ttl=60,
         verbose=False,
+        relay_base_url=None,
+        relay_api_version=1,
+        relay_auth_token=None,
+        relay_startup_check="require",
+        relay_max_items=32,
+        relay_max_request_bytes=65536,
+        relay_per_item_max_wire_bytes=4096,
+        relay_max_response_bytes=262144,
     )
 
 

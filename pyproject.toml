@@ -18,6 +18,8 @@ resilientdns = "resilientdns.main:main"
 [project.optional-dependencies]
 dev = [
   "pytest",
+  "pytest-asyncio",
+  "aiohttp",
   "ruff",
   "black",
   "mkdocs",

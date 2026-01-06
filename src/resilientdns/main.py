@@ -202,6 +202,20 @@ def main() -> None:
     parser.add_argument("--upstream-port", type=int, default=53)
     parser.add_argument("--upstream-timeout", type=float, default=2.0)
 
+    # Relay upstream (skeleton configuration only)
+    parser.add_argument("--relay-base-url", default=None)
+    parser.add_argument("--relay-api-version", type=int, default=1)
+    parser.add_argument("--relay-auth-token", default=None)
+    parser.add_argument(
+        "--relay-startup-check",
+        choices=["require", "warn", "off"],
+        default="require",
+    )
+    parser.add_argument("--relay-max-items", type=int, default=32)
+    parser.add_argument("--relay-max-request-bytes", type=int, default=65536)
+    parser.add_argument("--relay-per-item-max-wire-bytes", type=int, default=4096)
+    parser.add_argument("--relay-max-response-bytes", type=int, default=262144)
+
     # Cache tuning
     parser.add_argument(
         "--serve-stale-max",

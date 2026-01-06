@@ -1,6 +1,13 @@
 import argparse
 from dataclasses import dataclass
 
+from resilientdns.relay_types import (
+    RelayLimits,
+    validate_base_url,
+    validate_limits,
+    validate_startup_check,
+)
+
 
 @dataclass(frozen=True)
 class Config:
@@ -20,6 +27,14 @@ class Config:
     tcp_pool_idle_timeout_s: float = 30.0
     udp_max_workers: int = 32
     verbose: bool = False
+    relay_base_url: str | None = None
+    relay_api_version: int = 1
+    relay_auth_token: str | None = None
+    relay_startup_check: str = "require"
+    relay_max_items: int = 32
+    relay_max_request_bytes: int = 65536
+    relay_per_item_max_wire_bytes: int = 4096
+    relay_max_response_bytes: int = 262144
 
 
 def build_config(args: argparse.Namespace) -> Config:
@@ -36,6 +51,14 @@ def build_config(args: argparse.Namespace) -> Config:
         serve_stale_max_s=args.serve_stale_max,
         negative_ttl_s=args.negative_ttl,
         verbose=args.verbose,
+        relay_base_url=args.relay_base_url,
+        relay_api_version=args.relay_api_version,
+        relay_auth_token=args.relay_auth_token,
+        relay_startup_check=args.relay_startup_check,
+        relay_max_items=args.relay_max_items,
+        relay_max_request_bytes=args.relay_max_request_bytes,
+        relay_per_item_max_wire_bytes=args.relay_per_item_max_wire_bytes,
+        relay_max_response_bytes=args.relay_max_response_bytes,
     )
 
 
@@ -74,3 +97,14 @@ def validate_config(cfg: Config) -> None:
         raise ValueError("tcp_pool_max_conns must be >= 0")
     if cfg.tcp_pool_idle_timeout_s <= 0:
         raise ValueError("tcp_pool_idle_timeout_s must be > 0")
+
+    if cfg.relay_base_url:
+        validate_base_url(cfg.relay_base_url)
+        validate_startup_check(cfg.relay_startup_check)
+        limits = RelayLimits(
+            max_items=cfg.relay_max_items,
+            max_request_bytes=cfg.relay_max_request_bytes,
+            per_item_max_wire_bytes=cfg.relay_per_item_max_wire_bytes,
+            max_response_bytes=cfg.relay_max_response_bytes,
+        )
+        validate_limits(limits)
