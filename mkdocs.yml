@@ -32,9 +32,10 @@ markdown_extensions:
 nav:
   - Home: index.md
   - Architecture: architecture.md
+  - Upstream Transport: upstream.md
+  - Relay Spec: relay.md
   - Observability: observability.md
   - Failure Modes: failure-modes.md
-  - Gateway Protocol: protocol.md
   - Roadmap: roadmap.md
 
 extra_javascript:

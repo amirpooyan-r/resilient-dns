@@ -148,7 +148,7 @@ ResilientDNS (Python)
 |
 | HTTPS (batched, HTTP/1.1 friendly)
 v
-Remote Gateway
+Remote Relay
 |
 | DoH
 v
@@ -159,6 +159,20 @@ Upstream DNS Resolver
 - Upstream communication is controlled, batched, and minimized
 - Serve-stale behavior allows continued operation during outages
 
+---
+
+## Relay Upstream
+
+ResilientDNS supports a **Relay upstream**. A Relay is a remote HTTP batch DNS
+resolver belonging to the ResilientDNS project. Relays may be:
+
+- Serverless (e.g., Cloudflare Worker)
+- Self-hosted (Docker, VM, VPN, etc.)
+
+The Relay protocol is defined in `docs/relay.md`. Relay implementations may
+live in separate repositories.
+
+“The Relay is a logical component of ResilientDNS and is not a network gateway, router, NAT, or VPN device.”
 ---
 
 ## Project Status
@@ -185,14 +199,9 @@ resilient-dns/
 │  └─ resilientdns/                # Python LAN DNS resolver (core product)
 │
 ├─ tests/                          # Unit and integration tests
+│  └─ fake_relay/                  # Test-only Relay implementation used by contract tests
 │
 ├─ docs/                           # Architecture, design notes, documentation
-│
-├─ gateways/                       # Remote batch DNS resolvers (server-side)
-│  ├─ cloudflare-worker/           # Cloudflare Worker implementation
-│  ├─ php/                         # PHP-based gateway (future)
-│  ├─ dotnet/                      # .NET-based gateway (future)
-│  └─ node/                        # Node.js gateway (future)
 │
 ├─ tools/                          # Client-side utilities and diagnostics
 │  ├─ dns-check/                   # DNS testing and validation tools
@@ -206,7 +215,7 @@ resilient-dns/
 
 This layout intentionally separates:
 - **Core resolver logic**
-- **Gateway implementations**
+- **Relay protocol specification and test harnesses**
 - **Supporting tools**
 - **Infrastructure concerns**
 

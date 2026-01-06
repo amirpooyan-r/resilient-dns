@@ -33,6 +33,11 @@ Supported values are `udp` and `tcp`.
 
 For safety, the default bind address is `127.0.0.1`.
 
+## Relay Upstream (Planned)
+
+ResilientDNS will support a relay upstream using a stateless JSON batch API.
+See `docs/relay.md` for the protocol specification and endpoint conventions.
+
 ## Failure Semantics
 
 UDP and TCP upstream share identical resolver behavior:

@@ -2,7 +2,7 @@
 
 ResilientDNS is an open-source DNS cache and forwarder optimized for **unreliable, high-latency, and low-quality networks**.
 
-It accepts standard DNS (UDP/TCP) from LAN devices and forwards misses through a **batched HTTPS gateway** designed to work reliably without depending on HTTP/2.
+It accepts standard DNS (UDP/TCP) from LAN devices and forwards misses through a **batched HTTPS relay** designed to work reliably without depending on HTTP/2.
 
 ## What problem does it solve?
 
@@ -28,7 +28,7 @@ ResilientDNS focuses on correctness and resilience while minimizing upstream HTT
 ## Planned
 
 - Adaptive, budgeted prefetch for hot domains
-- Upstream request batching via HTTP/1.1-friendly gateway
+- Upstream request batching via HTTP/1.1-friendly relay
 - TCP support + truncation handling
 - Metrics endpoint
 

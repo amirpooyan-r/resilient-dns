@@ -6,8 +6,8 @@
 - ✅ Serve-stale (stale-if-error)
 - ✅ Bounded cache eviction (expired-first, then LRU)
 - ✅ Stale-while-revalidate (SWR)
-- Remote batch gateway client (HTTP/1.1 friendly)
-- Cloudflare Worker gateway starter
+- Remote batch relay client (HTTP/1.1 friendly)
+- Cloudflare Worker relay starter
 
 ## MVP-2
 - TCP support + truncation handling
@@ -17,6 +17,6 @@
 - Basic metrics endpoint
 
 ## Later
-- Additional gateways (PHP, .NET, Node)
+- Additional relays (PHP, .NET, Node)
 - Benchmark + trace tools
 - Docker + CI hardening
