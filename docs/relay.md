@@ -1,4 +1,4 @@
-# ResilientDNS Relay (v0.7.0)
+# ResilientDNS Relay
 
 ## 1. Overview
 
@@ -9,6 +9,10 @@ high-latency networks, and is intended to run on free-tier serverless platforms.
 
 The Relay is a stateless HTTP batch DNS forwarder. It is NOT a router, default
 gateway, NAT, or VPN gateway.
+
+Reference Relay implementation: resilientdns-relay-cloudflare. This is a
+reference for interoperability and operational validation; it does not change
+the protocol or ResilientDNS's deterministic behavior.
 
 The relay is NOT:
 - Automatic fallback
