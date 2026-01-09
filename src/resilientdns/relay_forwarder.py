@@ -77,20 +77,20 @@ class RelayUpstreamForwarder:
                 headers=headers,
             ) as resp:
                 if resp.status != 200:
+                    if self.metrics:
+                        self.metrics.inc("upstream_relay_client_errors_total")
                     if 400 <= resp.status < 500:
                         if self.metrics:
                             self.metrics.inc("upstream_relay_http_4xx_total")
                     elif 500 <= resp.status < 600:
                         if self.metrics:
                             self.metrics.inc("upstream_relay_http_5xx_total")
-                    else:
-                        if self.metrics:
-                            self.metrics.inc("upstream_relay_protocol_errors_total")
                     return None
                 raw = await resp.read()
         except asyncio.TimeoutError:
             if self.metrics:
                 self.metrics.inc("upstream_relay_timeouts_total")
+                self.metrics.inc("upstream_relay_client_errors_total")
             raise
         except aiohttp.ClientError:
             if self.metrics:
@@ -99,7 +99,7 @@ class RelayUpstreamForwarder:
 
         if len(raw) > limits.max_response_bytes:
             if self.metrics:
-                self.metrics.inc("upstream_relay_protocol_errors_total")
+                self.metrics.inc("upstream_relay_client_errors_total")
             raise ValueError("relay response exceeds max_response_bytes")
 
         data = self._parse_json(raw)
@@ -138,7 +138,7 @@ class RelayUpstreamForwarder:
             data = json.loads(raw.decode("utf-8"))
         except json.JSONDecodeError as exc:
             if self.metrics:
-                self.metrics.inc("upstream_relay_protocol_errors_total")
+                self.metrics.inc("upstream_relay_client_errors_total")
             raise ValueError("relay response invalid JSON") from exc
         if not isinstance(data, dict):
             if self.metrics:

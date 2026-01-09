@@ -75,7 +75,7 @@ async def test_relay_forwarder_drops_oversize(fake_relay_server):
 @pytest.mark.asyncio
 async def test_relay_forwarder_protocol_error(fake_relay_server):
     base_url, controller = fake_relay_server
-    controller.script.force_invalid_json = True
+    controller.script.force_protocol_v = 2
 
     metrics = Metrics()
     forwarder = RelayUpstreamForwarder(
@@ -91,6 +91,7 @@ async def test_relay_forwarder_protocol_error(fake_relay_server):
 
     snap = metrics.snapshot()
     assert snap.get("upstream_relay_protocol_errors_total", 0) == 1
+    assert snap.get("upstream_relay_client_errors_total", 0) == 0
 
 
 @pytest.mark.asyncio
@@ -112,6 +113,8 @@ async def test_relay_forwarder_timeout(fake_relay_server):
 
     snap = metrics.snapshot()
     assert snap.get("upstream_relay_timeouts_total", 0) == 1
+    assert snap.get("upstream_relay_client_errors_total", 0) == 1
+    assert snap.get("upstream_relay_protocol_errors_total", 0) == 0
 
 
 @pytest.mark.asyncio

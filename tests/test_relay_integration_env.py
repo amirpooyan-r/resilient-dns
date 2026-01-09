@@ -63,9 +63,11 @@ async def test_relay_integration_env():
                 body = await _read_text_maybe_gzip(resp)
                 encoding = resp.headers.get("Content-Encoding")
                 content_type = resp.headers.get("Content-Type")
-                assert (
-                    resp.status == 200
-                ), f"relay /v1/dns HTTP {resp.status} (encoding={encoding}, content_type={content_type}): {body}"
+                assert resp.status == 200, (
+                    f"relay /v1/dns HTTP {resp.status} "
+                    f"(encoding={encoding}, content_type={content_type}): "
+                    f"{body}"
+                )
             data = await _read_json(resp)
 
     assert data.get("id") == "it"

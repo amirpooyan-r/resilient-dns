@@ -53,12 +53,13 @@ evictions_total 3
 - `upstream_relay_http_4xx_total`: relay HTTP 4xx responses.
 - `upstream_relay_http_5xx_total`: relay HTTP 5xx responses.
 - `upstream_relay_timeouts_total`: relay timeouts.
-- `upstream_relay_client_errors_total`: relay client-side transport errors.
-- `upstream_relay_protocol_errors_total`: relay response parse/protocol failures.
+- `upstream_relay_client_errors_total`: relay HTTP client/transport/request failures (connect/timeouts/TLS/non-2xx/decode failures/etc.).
+- `upstream_relay_protocol_errors_total`: relay response shape/contract violations after a successful HTTP exchange and JSON decoding.
 
 Client errors reflect transport-side failures before a valid Relay response is
-received (connection/TLS/DNS issues). Protocol errors indicate the Relay
-responded, but the response was invalid or incompatible.
+received (including non-2xx or decode failures). Protocol errors indicate the
+Relay responded with 200 and valid JSON, but the response was invalid or
+incompatible.
 
 A request can be dropped without being an upstream error. Errors imply an upstream attempt was made.
 

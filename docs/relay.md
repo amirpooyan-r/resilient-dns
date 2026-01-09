@@ -253,11 +253,15 @@ incomplete items return timeout. No per-item timeout is required in v0.7.0.
 ResilientDNS SHOULD expose relay-related metrics, including:
 
 - upstream_relay_requests_total
-- upstream_relay_errors_total
+- upstream_relay_client_errors_total
 - upstream_relay_timeouts_total
 - upstream_relay_http_4xx_total
 - upstream_relay_http_5xx_total
 - upstream_relay_protocol_errors_total
+
+Client errors include transport/request failures (connect/timeouts/TLS/non-2xx/decode
+failures). Protocol errors only apply after a 200 response with valid JSON where the
+response shape or contract is invalid.
 
 Relay-side metrics are optional and not required by this spec.
 
