@@ -237,27 +237,23 @@ class DnsHandler:
         try:
             while True:
                 refresh_key, _reason = await self.refresh_queue.get()
-                if refresh_key in self.inflight_keys:
-                    self.queued_keys.discard(refresh_key)
-                    self.refresh_queue.task_done()
-                    continue
                 self.queued_keys.discard(refresh_key)
                 self.inflight_keys.add(refresh_key)
-                if self.metrics:
-                    self.metrics.inc("cache_refresh_started_total")
-                result = "success"
                 cancelled = False
+                attempted = False
+                result = "skipped"
                 try:
-                    ok = await self._refresh_via_worker(refresh_key)
-                    if not ok:
-                        result = "fail"
+                    attempted, result = await self._refresh_via_worker(refresh_key)
                 except asyncio.CancelledError:
                     cancelled = True
                     raise
                 except Exception:
                     logger.exception("REFRESH WORKER ERROR %s", refresh_key)
+                    attempted = True
                     result = "fail"
                 finally:
+                    if attempted and self.metrics:
+                        self.metrics.inc("cache_refresh_started_total")
                     if not cancelled and self.metrics:
                         self.metrics.inc(f"cache_refresh_completed_total{{result={result}}}")
                     self.inflight_keys.discard(refresh_key)
@@ -297,14 +293,27 @@ class DnsHandler:
         finally:
             self.inflight_keys.discard(refresh_key)
 
-    async def _refresh_via_worker(self, refresh_key: tuple[str, int, int]) -> bool:
+    async def _refresh_via_worker(self, refresh_key: tuple[str, int, int]) -> tuple[bool, str]:
+        if not self.config.refresh_enabled:
+            return False, "skipped"
         qname, qtype_id, qclass_id = refresh_key
         cache_key = (qname, qtype_id, qclass_id)
         entry = self.cache.peek(cache_key)
         if entry is None:
-            return False
-        if time.monotonic() > entry.expires_at:
-            return False
+            return False, "skipped"
+        now = time.monotonic()
+        remaining = entry.expires_at - now
+        if remaining < 0:
+            return False, "skipped"
+        if remaining > self.config.refresh_ahead_seconds:
+            return False, "skipped"
+        if entry.hits < self.config.refresh_popularity_threshold:
+            return False, "skipped"
+        if self.config.refresh_popularity_decay_seconds > 0:
+            if entry.last_hit_mono <= 0:
+                return False, "skipped"
+            if (now - entry.last_hit_mono) > self.config.refresh_popularity_decay_seconds:
+                return False, "skipped"
         try:
             qtype_name = QTYPE[qtype_id]
         except Exception:
@@ -316,12 +325,14 @@ class DnsHandler:
                 qclass_name = str(qclass_id)
             request = DNSRecord.question(qname, qtype_name, qclass_name)
         except Exception:
-            return False
+            return True, "fail"
         task, _leader = await self._sf.get_or_create(
             cache_key, lambda: self._resolve_upstream(request, cache_key, qname, qtype_name)
         )
         resp = await task
-        return resp is not None
+        if resp is None:
+            return True, "fail"
+        return True, "success"
 
     async def _refresh_once(
         self, key: tuple[str, int, int], qname: str, qtype_name: str

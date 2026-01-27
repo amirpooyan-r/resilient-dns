@@ -53,6 +53,7 @@ evictions_total 3
 | `cache_refresh_started_total` | Refresh jobs started by workers. |
 | `cache_refresh_completed_total{result="success"}` | Refresh jobs that completed successfully. |
 | `cache_refresh_completed_total{result="fail"}` | Refresh jobs that failed (no retries). |
+| `cache_refresh_completed_total{result="skipped"}` | Refresh jobs skipped without an upstream attempt. |
 
 ## Upstream Metrics Semantics
 

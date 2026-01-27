@@ -213,7 +213,7 @@ def test_refresh_never_blocks_foreground_cache_hit():
             key,
             CacheEntry(
                 response_wire=cached,
-                expires_at=now + 60,
+                expires_at=now + 10,
                 stale_until=now + 120,
                 rcode=0,
                 hits=10,
@@ -258,7 +258,7 @@ def test_worker_cleans_inflight_on_failure():
             key,
             CacheEntry(
                 response_wire=cached,
-                expires_at=now + 60,
+                expires_at=now + 10,
                 stale_until=now + 120,
                 rcode=0,
                 hits=10,
@@ -276,6 +276,128 @@ def test_worker_cleans_inflight_on_failure():
         snapshot = metrics.snapshot()
         assert snapshot.get("cache_refresh_started_total") == 1
         assert snapshot.get("cache_refresh_completed_total{result=fail}") == 1
+
+        await handler.stop_refresh_tasks()
+
+    asyncio.run(run())
+
+
+def test_refresh_skipped_when_entry_missing():
+    async def run():
+        metrics = Metrics()
+        handler = DnsHandler(
+            upstream=FailingUpstream(asyncio.Event()),
+            cache=MemoryDnsCache(CacheConfig()),
+            metrics=metrics,
+            config=HandlerConfig(refresh_enabled=True, refresh_concurrency=1),
+        )
+
+        refresh_key = ("missing.example", int(QTYPE.A), 1)
+        handler.enqueue_refresh(refresh_key, reason="tick")
+        handler.start_refresh_tasks()
+
+        await asyncio.wait_for(handler.refresh_queue.join(), timeout=0.5)
+
+        snap = metrics.snapshot()
+        assert snap.get("cache_refresh_started_total", 0) == 0
+        assert snap.get("cache_refresh_completed_total{result=skipped}") == 1
+        assert refresh_key not in handler.inflight_keys
+        assert refresh_key not in handler.queued_keys
+
+        await handler.stop_refresh_tasks()
+
+    asyncio.run(run())
+
+
+def test_refresh_skipped_when_not_eligible_anymore():
+    async def run():
+        metrics = Metrics()
+        cache = MemoryDnsCache(CacheConfig())
+        handler = DnsHandler(
+            upstream=FailingUpstream(asyncio.Event()),
+            cache=cache,
+            metrics=metrics,
+            config=HandlerConfig(
+                refresh_enabled=True,
+                refresh_concurrency=1,
+                refresh_ahead_seconds=10,
+                refresh_popularity_threshold=5,
+                refresh_popularity_decay_seconds=30,
+            ),
+        )
+
+        now = time.monotonic()
+        refresh_key = ("example.com", int(QTYPE.A), 1)
+        cache._put_entry_for_test(
+            refresh_key,
+            CacheEntry(
+                response_wire=b"x",
+                expires_at=now + 120,
+                stale_until=now + 180,
+                rcode=0,
+                hits=10,
+                last_hit_mono=now - 60,
+            ),
+        )
+
+        handler.enqueue_refresh(refresh_key, reason="tick")
+        handler.start_refresh_tasks()
+
+        await asyncio.wait_for(handler.refresh_queue.join(), timeout=0.5)
+
+        snap = metrics.snapshot()
+        assert snap.get("cache_refresh_started_total", 0) == 0
+        assert snap.get("cache_refresh_completed_total{result=skipped}") == 1
+        assert refresh_key not in handler.inflight_keys
+        assert refresh_key not in handler.queued_keys
+
+        await handler.stop_refresh_tasks()
+
+    asyncio.run(run())
+
+
+def test_refresh_fail_counts_fail_only_when_attempted():
+    async def run():
+        metrics = Metrics()
+        cache = MemoryDnsCache(CacheConfig())
+        started = asyncio.Event()
+        handler = DnsHandler(
+            upstream=FailingUpstream(started),
+            cache=cache,
+            metrics=metrics,
+            config=HandlerConfig(
+                refresh_enabled=True,
+                refresh_concurrency=1,
+                refresh_ahead_seconds=30,
+                refresh_popularity_threshold=1,
+            ),
+        )
+
+        now = time.monotonic()
+        refresh_key = ("example.com", int(QTYPE.A), 1)
+        cache._put_entry_for_test(
+            refresh_key,
+            CacheEntry(
+                response_wire=b"x",
+                expires_at=now + 10,
+                stale_until=now + 40,
+                rcode=0,
+                hits=5,
+                last_hit_mono=now,
+            ),
+        )
+
+        handler.enqueue_refresh(refresh_key, reason="tick")
+        handler.start_refresh_tasks()
+
+        await asyncio.wait_for(started.wait(), timeout=0.2)
+        await asyncio.wait_for(handler.refresh_queue.join(), timeout=0.5)
+
+        snap = metrics.snapshot()
+        assert snap.get("cache_refresh_started_total") == 1
+        assert snap.get("cache_refresh_completed_total{result=fail}") == 1
+        assert refresh_key not in handler.inflight_keys
+        assert refresh_key not in handler.queued_keys
 
         await handler.stop_refresh_tasks()
 

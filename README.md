@@ -71,6 +71,7 @@ Key properties:
 - Never blocks foreground cache hits
 - Popularity uses cache-hit counts (fresh or stale-served), resets on replace/evict, capped
 - Optional recency window via decay seconds
+- Refresh outcomes: success (updated), fail (attempted but failed), skipped (no attempt)
 
 Configuration (defaults shown):
 
