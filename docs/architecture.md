@@ -57,6 +57,13 @@ Refresh work runs in a fixed worker pool (`refresh_concurrency`) and reuses the
 normal upstream resolution path (no retries, no fallback). Serve-stale triggers
 also enqueue refresh requests.
 
+## Warmup List
+
+Warmup is a best-effort startup preload of refresh jobs from a text file.
+It uses the same bounded queue and dedupe rules as regular refreshes. The file
+format is simple lines of `qname qtype`, with comments (`#`) and blank lines
+ignored. Warmup is capped by `refresh_warmup_limit`.
+
 ## Observability
 
 ResilientDNS is logs-first and exposes lightweight counters. See

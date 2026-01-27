@@ -30,12 +30,12 @@ class CacheEntry:
     last_hit_mono: float = 0.0
 
 
-CacheKey: TypeAlias = tuple[str, int]
+CacheKey: TypeAlias = tuple[str, int, int]
 
 
 class MemoryDnsCache:
     """
-    Simple in-memory DNS cache keyed by (qname_lower, qtype_int).
+    Simple in-memory DNS cache keyed by (qname_lower, qtype_int, qclass_int).
     Stores full wire response bytes.
     """
 

@@ -9,7 +9,7 @@ def test_cache_clear_updates_metrics():
     cache = MemoryDnsCache(CacheConfig(), metrics=metrics)
     now = time.monotonic()
     cache._put_entry_for_test(
-        ("example.com", 1),
+        ("example.com", 1, 1),
         CacheEntry(response_wire=b"x", expires_at=now + 10, stale_until=now + 20, rcode=0),
     )
 

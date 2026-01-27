@@ -72,7 +72,7 @@ def test_stale_while_revalidate_refreshes_in_background():
         request = DNSRecord.question("example.com", qtype="A")
 
         qname = "example.com"
-        key = (qname, int(QTYPE.A))
+        key = (qname, int(QTYPE.A), 1)
         stale_response = _make_response(request.pack(), "1.2.3.4")
         now = time.monotonic()
         cache._store[key] = CacheEntry(

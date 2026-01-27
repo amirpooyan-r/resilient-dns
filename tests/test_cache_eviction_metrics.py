@@ -19,8 +19,8 @@ def _make_response(qname: str, ip: str) -> DNSRecord:
     return reply
 
 
-def _key(qname: str) -> tuple[str, int]:
-    return (qname.rstrip(".").lower(), int(QTYPE.A))
+def _key(qname: str) -> tuple[str, int, int]:
+    return (qname.rstrip(".").lower(), int(QTYPE.A), 1)
 
 
 def test_evictions_and_cache_entries_metrics():

@@ -4,6 +4,7 @@ import contextlib
 import logging
 import signal
 import sys
+from pathlib import Path
 
 from resilientdns.cache.memory import CacheConfig, MemoryDnsCache
 from resilientdns.config import Config, build_config, validate_config
@@ -18,6 +19,7 @@ from resilientdns.dns.server import (
     UdpServerConfig,
 )
 from resilientdns.metrics import Metrics, format_stats, periodic_stats_reporter
+from resilientdns.refresh_warmup import enqueue_warmup_file
 from resilientdns.relay_startup_check import run_relay_startup_check
 from resilientdns.relay_types import RelayConfig, RelayLimits
 from resilientdns.upstream.tcp_forwarder import TcpUpstreamForwarder, UpstreamTcpConfig
@@ -133,6 +135,16 @@ async def _run(cfg: Config) -> None:
             refresh_queue_max=cfg.refresh_queue_max,
         ),
     )
+    if cfg.refresh_warmup_enabled:
+        try:
+            enqueue_warmup_file(
+                Path(cfg.refresh_warmup_file or ""),
+                handler.enqueue_refresh,
+                limit=cfg.refresh_warmup_limit,
+                metrics=metrics,
+            )
+        except Exception as exc:
+            raise SystemExit(f"failed to load warmup file: {exc}") from exc
     udp_server = UdpDnsServer(
         UdpServerConfig(
             host=cfg.listen_host,
@@ -283,6 +295,22 @@ def main() -> None:
     parser.add_argument("--refresh-batch-size", type=int, default=50)
     parser.add_argument("--refresh-concurrency", type=int, default=5)
     parser.add_argument("--refresh-queue-max", type=int, default=1024)
+    parser.add_argument(
+        "--refresh-warmup-enabled",
+        action="store_true",
+        help="Enable warmup list loading at startup (best-effort)",
+    )
+    parser.add_argument(
+        "--refresh-warmup-file",
+        default=None,
+        help="Path to warmup list file (required if warmup is enabled)",
+    )
+    parser.add_argument(
+        "--refresh-warmup-limit",
+        type=int,
+        default=200,
+        help="Max warmup entries to attempt at startup",
+    )
 
     # Logging
     parser.add_argument("-v", "--verbose", action="store_true")

@@ -23,7 +23,7 @@ def _make_response(wire: bytes, ip: str) -> bytes:
 def test_hits_increment_on_cache_hits_and_stale_served():
     cache = MemoryDnsCache(CacheConfig(serve_stale_max_s=60))
     req = DNSRecord.question("example.com", qtype="A")
-    key = ("example.com", int(QTYPE.A))
+    key = ("example.com", int(QTYPE.A), 1)
     wire = _make_response(req.pack(), "1.2.3.4")
     now = time.monotonic()
     cache._put_entry_for_test(
@@ -54,7 +54,7 @@ def test_hits_increment_on_cache_hits_and_stale_served():
 def test_hit_cap_is_enforced():
     cache = MemoryDnsCache(CacheConfig())
     req = DNSRecord.question("example.com", qtype="A")
-    key = ("example.com", int(QTYPE.A))
+    key = ("example.com", int(QTYPE.A), 1)
     wire = _make_response(req.pack(), "1.2.3.4")
     now = time.monotonic()
     cache._put_entry_for_test(

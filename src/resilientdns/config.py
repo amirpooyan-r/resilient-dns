@@ -43,6 +43,9 @@ class Config:
     refresh_batch_size: int = 50
     refresh_concurrency: int = 5
     refresh_queue_max: int = 1024
+    refresh_warmup_enabled: bool = False
+    refresh_warmup_file: str | None = None
+    refresh_warmup_limit: int = 200
 
 
 def build_config(args: argparse.Namespace) -> Config:
@@ -75,6 +78,9 @@ def build_config(args: argparse.Namespace) -> Config:
         refresh_batch_size=args.refresh_batch_size,
         refresh_concurrency=args.refresh_concurrency,
         refresh_queue_max=args.refresh_queue_max,
+        refresh_warmup_enabled=args.refresh_warmup_enabled,
+        refresh_warmup_file=args.refresh_warmup_file,
+        refresh_warmup_limit=args.refresh_warmup_limit,
     )
 
 
@@ -118,6 +124,10 @@ def validate_config(cfg: Config) -> None:
         raise ValueError("refresh_concurrency must be >= 0")
     if cfg.refresh_queue_max < 0:
         raise ValueError("refresh_queue_max must be >= 0")
+    if cfg.refresh_warmup_enabled and not cfg.refresh_warmup_file:
+        raise ValueError("refresh_warmup_file is required when warmup is enabled")
+    if cfg.refresh_warmup_enabled and cfg.refresh_warmup_limit <= 0:
+        raise ValueError("refresh_warmup_limit must be > 0 when warmup is enabled")
 
     if cfg.max_inflight < 1:
         raise ValueError("max_inflight must be >= 1")

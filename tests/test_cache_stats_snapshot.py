@@ -10,19 +10,19 @@ def test_cache_stats_snapshot_counts():
     now = time.monotonic()
 
     cache._put_entry_for_test(
-        ("fresh", 1),
+        ("fresh", 1, 1),
         CacheEntry(response_wire=b"x", expires_at=now + 10, stale_until=now + 70, rcode=0),
     )
     cache._put_entry_for_test(
-        ("stale", 1),
+        ("stale", 1, 1),
         CacheEntry(response_wire=b"y", expires_at=now - 5, stale_until=now + 20, rcode=0),
     )
     cache._put_entry_for_test(
-        ("expired", 1),
+        ("expired", 1, 1),
         CacheEntry(response_wire=b"z", expires_at=now - 20, stale_until=now - 10, rcode=0),
     )
     cache._put_entry_for_test(
-        ("negative", 1),
+        ("negative", 1, 1),
         CacheEntry(response_wire=b"n", expires_at=now + 5, stale_until=now + 65, rcode=3),
     )
 

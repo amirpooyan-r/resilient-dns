@@ -23,6 +23,11 @@ _STATS_FIELDS = (
     ("evictions", "evictions_total"),
 )
 
+WARMUP_METRIC_KEYS = (
+    "cache_refresh_warmup_loaded_total",
+    "cache_refresh_warmup_invalid_lines_total",
+)
+
 
 class Metrics:
     def __init__(self) -> None:

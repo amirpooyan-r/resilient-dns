@@ -27,7 +27,7 @@ def test_negative_ttl_uses_soa_minimum():
     )
 
     qname = str(req.q.qname).rstrip(".").lower()
-    key = (qname, int(QTYPE.A))
+    key = (qname, int(QTYPE.A), 1)
     now = time.monotonic()
     cache.put(key, reply)
     entry = cache._store[key]

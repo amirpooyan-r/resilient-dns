@@ -4,7 +4,7 @@ import logging
 import time
 from dataclasses import dataclass
 
-from dnslib import QTYPE, RCODE, DNSRecord
+from dnslib import CLASS, QTYPE, RCODE, DNSRecord
 
 from resilientdns.cache.memory import MemoryDnsCache
 from resilientdns.dns.singleflight import SingleFlight
@@ -73,8 +73,8 @@ class DnsHandler:
             self.metrics.inc("queries_total")
 
         qtype_id, qtype_name = self._qtype_mapping(q.qtype)
-        key: tuple[str, int] = (qname, qtype_id)
-        refresh_key: tuple[str, int, int] = (qname, qtype_id, qclass_id)
+        key: tuple[str, int, int] = (qname, qtype_id, qclass_id)
+        refresh_key: tuple[str, int, int] = key
 
         # 1) Fresh cache
         fresh = self.cache.get_fresh(key)
@@ -163,7 +163,7 @@ class DnsHandler:
         return response
 
     async def _resolve_upstream(
-        self, request: DNSRecord, key: tuple[str, int], qname: str, qtype_name: str
+        self, request: DNSRecord, key: tuple[str, int, int], qname: str, qtype_name: str
     ) -> DNSRecord | None:
         resp_bytes = await self._query_upstream(
             request.pack(),
@@ -212,7 +212,7 @@ class DnsHandler:
         now = time.monotonic()
         enqueued = 0
         entries = self.cache.entries_snapshot()
-        for (qname, qtype_id), entry in entries:
+        for (qname, qtype_id, qclass_id), entry in entries:
             remaining = entry.expires_at - now
             if remaining < 0:
                 continue
@@ -225,7 +225,7 @@ class DnsHandler:
                     continue
                 if (now - entry.last_hit_mono) > self.config.refresh_popularity_decay_seconds:
                     continue
-            refresh_key = (qname, qtype_id, 1)
+            refresh_key = (qname, qtype_id, qclass_id)
             if self.enqueue_refresh(refresh_key, reason="tick"):
                 enqueued += 1
                 if enqueued >= self.config.refresh_batch_size:
@@ -267,7 +267,7 @@ class DnsHandler:
 
     async def _schedule_refresh(
         self,
-        key: tuple[str, int],
+        key: tuple[str, int, int],
         qname: str,
         qtype_name: str,
         refresh_key: tuple[str, int, int],
@@ -285,7 +285,7 @@ class DnsHandler:
 
     async def _refresh_once_tracked(
         self,
-        key: tuple[str, int],
+        key: tuple[str, int, int],
         qname: str,
         qtype_name: str,
         refresh_key: tuple[str, int, int],
@@ -298,8 +298,8 @@ class DnsHandler:
             self.inflight_keys.discard(refresh_key)
 
     async def _refresh_via_worker(self, refresh_key: tuple[str, int, int]) -> bool:
-        qname, qtype_id, _qclass_id = refresh_key
-        cache_key = (qname, qtype_id)
+        qname, qtype_id, qclass_id = refresh_key
+        cache_key = (qname, qtype_id, qclass_id)
         entry = self.cache.peek(cache_key)
         if entry is None:
             return False
@@ -310,7 +310,11 @@ class DnsHandler:
         except Exception:
             qtype_name = str(qtype_id)
         try:
-            request = DNSRecord.question(qname, qtype_name)
+            try:
+                qclass_name = CLASS[qclass_id]
+            except Exception:
+                qclass_name = str(qclass_id)
+            request = DNSRecord.question(qname, qtype_name, qclass_name)
         except Exception:
             return False
         task, _leader = await self._sf.get_or_create(
@@ -320,11 +324,16 @@ class DnsHandler:
         return resp is not None
 
     async def _refresh_once(
-        self, key: tuple[str, int], qname: str, qtype_name: str
+        self, key: tuple[str, int, int], qname: str, qtype_name: str
     ) -> DNSRecord | None:
-        # Build a fresh query for this (qname, qtype_name)
+        # Build a fresh query for this (qname, qtype_name, qclass)
         try:
-            new_req = DNSRecord.question(qname, qtype_name)
+            qclass_id = key[2]
+            try:
+                qclass_name = CLASS[qclass_id]
+            except Exception:
+                qclass_name = str(qclass_id)
+            new_req = DNSRecord.question(qname, qtype_name, qclass_name)
         except Exception:
             logger.exception("REFRESH BUILD FAIL %s %s", qname, qtype_name)
             return None

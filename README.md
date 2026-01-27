@@ -86,6 +86,29 @@ resilientdns \
   --refresh-queue-max 1024
 ```
 
+### Warmup List (v0.11.0)
+
+Warmup is a best-effort startup preload of refresh jobs from a text file.
+It respects the bounded queue and dedupe rules; extra entries are dropped
+once the queue is full. No retries or fallback are added.
+
+Format (one per line):
+
+```
+# comments allowed
+example.com A
+example.net AAAA
+```
+
+Config (defaults shown):
+
+```bash
+resilientdns \
+  --refresh-warmup-enabled \
+  --refresh-warmup-file ./warmup.txt \
+  --refresh-warmup-limit 200
+```
+
 ## Upstream behavior
 
 - Supports UDP and TCP upstream forwarding (explicit selection, no guessing)

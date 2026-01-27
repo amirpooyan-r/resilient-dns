@@ -41,9 +41,9 @@ def _make_response(wire: bytes, ip: str) -> bytes:
     return reply.pack()
 
 
-def _cache_key(request: DNSRecord) -> tuple[str, int]:
+def _cache_key(request: DNSRecord) -> tuple[str, int, int]:
     qname = str(request.q.qname).rstrip(".").lower()
-    return (qname, int(request.q.qtype))
+    return (qname, int(request.q.qtype), int(request.q.qclass))
 
 
 def test_cold_miss_timeout_servfail():

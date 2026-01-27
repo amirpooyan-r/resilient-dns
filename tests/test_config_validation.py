@@ -35,6 +35,9 @@ def _args() -> argparse.Namespace:
         refresh_batch_size=50,
         refresh_concurrency=5,
         refresh_queue_max=1024,
+        refresh_warmup_enabled=False,
+        refresh_warmup_file=None,
+        refresh_warmup_limit=200,
     )
 
 
@@ -68,4 +71,12 @@ def test_config_empty_upstream_host():
     args = _args()
     args.upstream_host = ""
     with pytest.raises(ValueError, match="upstream_host"):
+        validate_config(build_config(args))
+
+
+def test_warmup_requires_file_when_enabled():
+    args = _args()
+    args.refresh_warmup_enabled = True
+    args.refresh_warmup_file = None
+    with pytest.raises(ValueError, match="refresh_warmup_file"):
         validate_config(build_config(args))

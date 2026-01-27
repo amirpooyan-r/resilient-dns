@@ -68,7 +68,7 @@ def test_hybrid_gate_blocks_when_hits_below_threshold():
             ),
         )
         now = time.monotonic()
-        key = ("example.com", int(QTYPE.A))
+        key = ("example.com", int(QTYPE.A), 1)
         cache._put_entry_for_test(
             key,
             CacheEntry(
@@ -100,7 +100,7 @@ def test_hybrid_gate_allows_when_ttl_low_and_hits_high():
             ),
         )
         now = time.monotonic()
-        key = ("example.com", int(QTYPE.A))
+        key = ("example.com", int(QTYPE.A), 1)
         cache._put_entry_for_test(
             key,
             CacheEntry(
@@ -115,6 +115,43 @@ def test_hybrid_gate_allows_when_ttl_low_and_hits_high():
         await handler._refresh_scan_tick()
         assert handler.refresh_queue.qsize() == 1
         assert ("example.com", int(QTYPE.A), 1) in handler.queued_keys
+
+    asyncio.run(run())
+
+
+def test_refresh_scan_preserves_qclass():
+    async def run():
+        cache = MemoryDnsCache(CacheConfig())
+        handler = DnsHandler(
+            upstream=GateUpstream(asyncio.Event(), asyncio.Event()),
+            cache=cache,
+            config=HandlerConfig(
+                refresh_enabled=True,
+                refresh_ahead_seconds=30,
+                refresh_popularity_threshold=1,
+                refresh_batch_size=10,
+            ),
+        )
+        now = time.monotonic()
+        key = ("example.com", int(QTYPE.A), 3)
+        cache._put_entry_for_test(
+            key,
+            CacheEntry(
+                response_wire=b"x",
+                expires_at=now + 10,
+                stale_until=now + 40,
+                rcode=0,
+                hits=5,
+                last_hit_mono=now,
+            ),
+        )
+
+        await handler._refresh_scan_tick()
+        assert handler.refresh_queue.qsize() == 1
+        assert key in handler.queued_keys
+        queued_key, reason = handler.refresh_queue.get_nowait()
+        assert queued_key == key
+        assert reason == "tick"
 
     asyncio.run(run())
 
@@ -134,7 +171,7 @@ def test_hybrid_gate_blocks_when_decay_window_elapsed():
             ),
         )
         now = time.monotonic()
-        key = ("example.com", int(QTYPE.A))
+        key = ("example.com", int(QTYPE.A), 1)
         cache._put_entry_for_test(
             key,
             CacheEntry(
@@ -170,7 +207,7 @@ def test_refresh_never_blocks_foreground_cache_hit():
 
         req = DNSRecord.question("example.com", qtype="A")
         now = time.monotonic()
-        key = ("example.com", int(QTYPE.A))
+        key = ("example.com", int(QTYPE.A), 1)
         cached = _make_response(req.pack(), "1.2.3.4")
         cache._put_entry_for_test(
             key,
@@ -215,7 +252,7 @@ def test_worker_cleans_inflight_on_failure():
 
         req = DNSRecord.question("example.com", qtype="A")
         now = time.monotonic()
-        key = ("example.com", int(QTYPE.A))
+        key = ("example.com", int(QTYPE.A), 1)
         cached = _make_response(req.pack(), "1.2.3.4")
         cache._put_entry_for_test(
             key,
@@ -228,7 +265,7 @@ def test_worker_cleans_inflight_on_failure():
             ),
         )
 
-        refresh_key = (key[0], key[1], 1)
+        refresh_key = key
         handler.enqueue_refresh(refresh_key, reason="tick")
         handler.start_refresh_tasks()
 
