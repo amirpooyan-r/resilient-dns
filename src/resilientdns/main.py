@@ -126,6 +126,7 @@ async def _run(cfg: Config) -> None:
             refresh_enabled=cfg.refresh_enabled,
             refresh_ahead_seconds=cfg.refresh_ahead_seconds,
             refresh_popularity_threshold=cfg.refresh_popularity_threshold,
+            refresh_popularity_decay_seconds=cfg.refresh_popularity_decay_seconds,
             refresh_tick_ms=cfg.refresh_tick_ms,
             refresh_batch_size=cfg.refresh_batch_size,
             refresh_concurrency=cfg.refresh_concurrency,
@@ -277,6 +278,7 @@ def main() -> None:
     parser.add_argument("--refresh-enabled", action="store_true")
     parser.add_argument("--refresh-ahead-seconds", type=int, default=30)
     parser.add_argument("--refresh-popularity-threshold", type=int, default=5)
+    parser.add_argument("--refresh-popularity-decay-seconds", type=int, default=0)
     parser.add_argument("--refresh-tick-ms", type=int, default=500)
     parser.add_argument("--refresh-batch-size", type=int, default=50)
     parser.add_argument("--refresh-concurrency", type=int, default=5)

@@ -45,6 +45,10 @@ fresh without blocking foreground queries. Eligibility is **hybrid**:
 Remaining TTL is computed using monotonic time, consistent with cache expiry.
 Expired or missing entries are never refreshed.
 
+Popularity is tracked as cache-hit counts (fresh or stale-served). Hits reset
+on replacement or eviction and are capped to avoid unbounded growth. An optional
+recency window can be enforced via `refresh_popularity_decay_seconds`.
+
 The scheduler ticks every `refresh_tick_ms` and enqueues up to
 `refresh_batch_size` eligible keys into a bounded queue (`refresh_queue_max`).
 Scanning is deterministic (stable iteration order, no jitter).

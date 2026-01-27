@@ -119,6 +119,40 @@ def test_hybrid_gate_allows_when_ttl_low_and_hits_high():
     asyncio.run(run())
 
 
+def test_hybrid_gate_blocks_when_decay_window_elapsed():
+    async def run():
+        cache = MemoryDnsCache(CacheConfig())
+        handler = DnsHandler(
+            upstream=GateUpstream(asyncio.Event(), asyncio.Event()),
+            cache=cache,
+            config=HandlerConfig(
+                refresh_enabled=True,
+                refresh_ahead_seconds=30,
+                refresh_popularity_threshold=5,
+                refresh_popularity_decay_seconds=30,
+                refresh_batch_size=10,
+            ),
+        )
+        now = time.monotonic()
+        key = ("example.com", int(QTYPE.A))
+        cache._put_entry_for_test(
+            key,
+            CacheEntry(
+                response_wire=b"x",
+                expires_at=now + 10,
+                stale_until=now + 40,
+                rcode=0,
+                hits=10,
+                last_hit_mono=now - 60,
+            ),
+        )
+
+        await handler._refresh_scan_tick()
+        assert handler.refresh_queue.qsize() == 0
+
+    asyncio.run(run())
+
+
 def test_refresh_never_blocks_foreground_cache_hit():
     async def run():
         cache = MemoryDnsCache(CacheConfig())

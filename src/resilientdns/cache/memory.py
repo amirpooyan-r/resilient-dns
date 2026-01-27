@@ -7,6 +7,8 @@ from dnslib import RCODE, DNSRecord
 
 from resilientdns.metrics import Metrics
 
+_HIT_CAP = 1024
+
 
 @dataclass(frozen=True)
 class CacheConfig:
@@ -25,6 +27,7 @@ class CacheEntry:
     stale_until: float
     rcode: int
     hits: int = 0
+    last_hit_mono: float = 0.0
 
 
 CacheKey: TypeAlias = tuple[str, int]
@@ -47,7 +50,8 @@ class MemoryDnsCache:
             return None
         now = time.monotonic()
         if now <= e.expires_at:
-            e.hits += 1
+            e.hits = min(_HIT_CAP, e.hits + 1)
+            e.last_hit_mono = now
             self._count_negative(e)
             self._touch(key)
             return e.response_wire
@@ -59,7 +63,8 @@ class MemoryDnsCache:
             return None
         now = time.monotonic()
         if e.expires_at < now <= e.stale_until:
-            e.hits += 1
+            e.hits = min(_HIT_CAP, e.hits + 1)
+            e.last_hit_mono = now
             self._count_negative(e)
             self._touch(key)
             return e.response_wire
@@ -85,6 +90,8 @@ class MemoryDnsCache:
             expires_at=expires_at,
             stale_until=stale_until,
             rcode=response.header.rcode,
+            hits=0,
+            last_hit_mono=0.0,
         )
         self._touch(key)
         self._evict_if_needed()

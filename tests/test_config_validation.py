@@ -30,6 +30,7 @@ def _args() -> argparse.Namespace:
         refresh_enabled=False,
         refresh_ahead_seconds=30,
         refresh_popularity_threshold=5,
+        refresh_popularity_decay_seconds=0,
         refresh_tick_ms=500,
         refresh_batch_size=50,
         refresh_concurrency=5,

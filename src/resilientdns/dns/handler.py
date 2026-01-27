@@ -24,6 +24,7 @@ class HandlerConfig:
     refresh_enabled: bool = False
     refresh_ahead_seconds: int = 30
     refresh_popularity_threshold: int = 5
+    refresh_popularity_decay_seconds: int = 0
     refresh_tick_ms: int = 500
     refresh_batch_size: int = 50
     refresh_concurrency: int = 5
@@ -219,6 +220,11 @@ class DnsHandler:
                 continue
             if entry.hits < self.config.refresh_popularity_threshold:
                 continue
+            if self.config.refresh_popularity_decay_seconds > 0:
+                if entry.last_hit_mono <= 0:
+                    continue
+                if (now - entry.last_hit_mono) > self.config.refresh_popularity_decay_seconds:
+                    continue
             refresh_key = (qname, qtype_id, 1)
             if self.enqueue_refresh(refresh_key, reason="tick"):
                 enqueued += 1

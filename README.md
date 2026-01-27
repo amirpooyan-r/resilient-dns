@@ -69,6 +69,8 @@ Key properties:
 - Dedupe via queued/inflight tracking
 - Deterministic scanning
 - Never blocks foreground cache hits
+- Popularity uses cache-hit counts (fresh or stale-served), resets on replace/evict, capped
+- Optional recency window via decay seconds
 
 Configuration (defaults shown):
 
@@ -77,6 +79,7 @@ resilientdns \
   --refresh-enabled \
   --refresh-ahead-seconds 30 \
   --refresh-popularity-threshold 5 \
+  --refresh-popularity-decay-seconds 0 \
   --refresh-tick-ms 500 \
   --refresh-batch-size 50 \
   --refresh-concurrency 5 \

@@ -38,6 +38,7 @@ class Config:
     refresh_enabled: bool = False
     refresh_ahead_seconds: int = 30
     refresh_popularity_threshold: int = 5
+    refresh_popularity_decay_seconds: int = 0
     refresh_tick_ms: int = 500
     refresh_batch_size: int = 50
     refresh_concurrency: int = 5
@@ -69,6 +70,7 @@ def build_config(args: argparse.Namespace) -> Config:
         refresh_enabled=args.refresh_enabled,
         refresh_ahead_seconds=args.refresh_ahead_seconds,
         refresh_popularity_threshold=args.refresh_popularity_threshold,
+        refresh_popularity_decay_seconds=args.refresh_popularity_decay_seconds,
         refresh_tick_ms=args.refresh_tick_ms,
         refresh_batch_size=args.refresh_batch_size,
         refresh_concurrency=args.refresh_concurrency,
@@ -106,6 +108,8 @@ def validate_config(cfg: Config) -> None:
         raise ValueError("refresh_ahead_seconds must be >= 0")
     if cfg.refresh_popularity_threshold < 0:
         raise ValueError("refresh_popularity_threshold must be >= 0")
+    if cfg.refresh_popularity_decay_seconds < 0:
+        raise ValueError("refresh_popularity_decay_seconds must be >= 0")
     if cfg.refresh_tick_ms <= 0:
         raise ValueError("refresh_tick_ms must be > 0")
     if cfg.refresh_batch_size <= 0:
