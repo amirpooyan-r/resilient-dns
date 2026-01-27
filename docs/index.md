@@ -23,6 +23,7 @@ ResilientDNS focuses on correctness and resilience while minimizing upstream HTT
 - Serve-stale behavior for resilience
 - Stale-while-revalidate (SWR)
 - SingleFlight deduplication
+- Batch refresh (hybrid TTL + popularity gate)
 - Lightweight in-process metrics counters
 
 ## Planned

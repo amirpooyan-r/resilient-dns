@@ -56,6 +56,33 @@ ResilientDNS is designed to:
 - SingleFlight deduplication (misses + refresh)
 - Lightweight in-process metrics counters
 
+## Batch Refresh (v0.10.0)
+
+Batch refresh is a **best-effort** background scheduler that keeps hot cache
+entries fresh without blocking foreground queries. It uses a **bounded queue**,
+fixed concurrency, and deduplication. Scanning is deterministic (no jitter),
+and refresh work never changes foreground query semantics.
+
+Key properties:
+- Best-effort (no retries, no fallback)
+- Bounded queue + fixed worker count
+- Dedupe via queued/inflight tracking
+- Deterministic scanning
+- Never blocks foreground cache hits
+
+Configuration (defaults shown):
+
+```bash
+resilientdns \
+  --refresh-enabled \
+  --refresh-ahead-seconds 30 \
+  --refresh-popularity-threshold 5 \
+  --refresh-tick-ms 500 \
+  --refresh-batch-size 50 \
+  --refresh-concurrency 5 \
+  --refresh-queue-max 1024
+```
+
 ## Upstream behavior
 
 - Supports UDP and TCP upstream forwarding (explicit selection, no guessing)

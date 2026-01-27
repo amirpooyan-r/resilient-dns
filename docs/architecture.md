@@ -34,6 +34,25 @@ removes the oldest entries. This prevents unbounded memory growth under load.
 Stale-while-revalidate serves stale entries immediately and refreshes in the
 background. SingleFlight deduplicates concurrent misses and refreshes.
 
+## Batch Refresh (Hybrid Gate)
+
+Batch refresh is a best-effort background scheduler that keeps hot entries
+fresh without blocking foreground queries. Eligibility is **hybrid**:
+
+- `remaining_ttl_seconds <= refresh_ahead_seconds`
+- `entry.hits >= refresh_popularity_threshold`
+
+Remaining TTL is computed using monotonic time, consistent with cache expiry.
+Expired or missing entries are never refreshed.
+
+The scheduler ticks every `refresh_tick_ms` and enqueues up to
+`refresh_batch_size` eligible keys into a bounded queue (`refresh_queue_max`).
+Scanning is deterministic (stable iteration order, no jitter).
+
+Refresh work runs in a fixed worker pool (`refresh_concurrency`) and reuses the
+normal upstream resolution path (no retries, no fallback). Serve-stale triggers
+also enqueue refresh requests.
+
 ## Observability
 
 ResilientDNS is logs-first and exposes lightweight counters. See

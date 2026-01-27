@@ -42,6 +42,18 @@ evictions_total 3
 | `dropped_total` | Packets or responses dropped due to capacity/size limits. |
 | `malformed_total` | Malformed DNS packets observed. |
 
+### Refresh Metrics
+
+| Metric | Meaning |
+| --- | --- |
+| `swr_refresh_triggered_total` | Stale-while-revalidate refreshes started due to serving stale. |
+| `cache_refresh_enqueued_total` | Background refresh jobs enqueued. |
+| `cache_refresh_dropped_total{reason="queue_full"}` | Refresh enqueue dropped because the queue is full. |
+| `cache_refresh_dropped_total{reason="duplicate"}` | Refresh enqueue dropped due to dedupe. |
+| `cache_refresh_started_total` | Refresh jobs started by workers. |
+| `cache_refresh_completed_total{result="success"}` | Refresh jobs that completed successfully. |
+| `cache_refresh_completed_total{result="fail"}` | Refresh jobs that failed (no retries). |
+
 ## Upstream Metrics Semantics
 
 - `upstream_requests_total`: number of actual upstream attempts (after inflight admission).

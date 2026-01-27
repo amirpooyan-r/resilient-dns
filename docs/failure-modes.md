@@ -10,4 +10,5 @@
 ## Refresh Behavior
 
 Refresh failures do not block requests. They only affect logs and metrics, and
-the resolver continues to serve cached responses when possible.
+the resolver continues to serve cached responses when possible. Refresh is
+best-effort with no retries or fallback.
