@@ -7,7 +7,7 @@ import sys
 
 from resilientdns.cache.memory import CacheConfig, MemoryDnsCache
 from resilientdns.config import Config, build_config, validate_config
-from resilientdns.dns.handler import DnsHandler
+from resilientdns.dns.handler import DnsHandler, HandlerConfig
 from resilientdns.dns.server import (
     HttpMetricsConfig,
     HttpMetricsServer,
@@ -116,7 +116,22 @@ async def _run(cfg: Config) -> None:
         ),
         metrics=metrics,
     )
-    handler = DnsHandler(upstream=upstream, cache=cache, metrics=metrics)
+    handler = DnsHandler(
+        upstream=upstream,
+        cache=cache,
+        metrics=metrics,
+        config=HandlerConfig(
+            upstream_timeout_s=cfg.upstream_timeout_s,
+            refresh_watch_timeout_s=5.0,
+            refresh_enabled=cfg.refresh_enabled,
+            refresh_ahead_seconds=cfg.refresh_ahead_seconds,
+            refresh_popularity_threshold=cfg.refresh_popularity_threshold,
+            refresh_tick_ms=cfg.refresh_tick_ms,
+            refresh_batch_size=cfg.refresh_batch_size,
+            refresh_concurrency=cfg.refresh_concurrency,
+            refresh_queue_max=cfg.refresh_queue_max,
+        ),
+    )
     udp_server = UdpDnsServer(
         UdpServerConfig(
             host=cfg.listen_host,
@@ -167,6 +182,7 @@ async def _run(cfg: Config) -> None:
     tcp_task = asyncio.create_task(tcp_server.run())
     metrics_task = asyncio.create_task(metrics_server.run()) if metrics_server else None
     reporter_task = None
+    refresh_tasks = []
 
     try:
         await wait_ready(udp_task, udp_server.ready)
@@ -175,6 +191,7 @@ async def _run(cfg: Config) -> None:
             await wait_ready(metrics_task, metrics_server.ready)
         ready_state.set_ready()
         reporter_task = asyncio.create_task(periodic_stats_reporter(metrics))
+        refresh_tasks = handler.start_refresh_tasks()
         tasks = [udp_task, tcp_task]
         if metrics_task:
             tasks.append(metrics_task)
@@ -185,6 +202,8 @@ async def _run(cfg: Config) -> None:
             reporter_task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await reporter_task
+        if refresh_tasks:
+            await handler.stop_refresh_tasks()
         for fn in stop_fns:
             fn()
         tasks = [udp_task, tcp_task]
@@ -255,6 +274,13 @@ def main() -> None:
         default=60,
         help="TTL (seconds) for negative cache entries",
     )
+    parser.add_argument("--refresh-enabled", action="store_true")
+    parser.add_argument("--refresh-ahead-seconds", type=int, default=30)
+    parser.add_argument("--refresh-popularity-threshold", type=int, default=5)
+    parser.add_argument("--refresh-tick-ms", type=int, default=500)
+    parser.add_argument("--refresh-batch-size", type=int, default=50)
+    parser.add_argument("--refresh-concurrency", type=int, default=5)
+    parser.add_argument("--refresh-queue-max", type=int, default=1024)
 
     # Logging
     parser.add_argument("-v", "--verbose", action="store_true")

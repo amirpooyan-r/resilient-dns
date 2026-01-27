@@ -1,5 +1,7 @@
 import asyncio
+import contextlib
 import logging
+import time
 from dataclasses import dataclass
 
 from dnslib import QTYPE, RCODE, DNSRecord
@@ -18,6 +20,13 @@ class HandlerConfig:
 
     # If serving stale, how long we wait before declaring refresh "failed" (log only)
     refresh_watch_timeout_s: float = 5.0
+    refresh_queue_max: int = 1024
+    refresh_enabled: bool = False
+    refresh_ahead_seconds: int = 30
+    refresh_popularity_threshold: int = 5
+    refresh_tick_ms: int = 500
+    refresh_batch_size: int = 50
+    refresh_concurrency: int = 5
 
 
 class DnsHandler:
@@ -42,6 +51,12 @@ class DnsHandler:
         self.config = config or HandlerConfig()
         self.metrics = metrics
         self._sf = SingleFlight(metrics=metrics)
+        self.refresh_queue: asyncio.Queue[tuple[tuple[str, int, int], str]] = asyncio.Queue(
+            maxsize=self.config.refresh_queue_max
+        )
+        self.queued_keys: set[tuple[str, int, int]] = set()
+        self.inflight_keys: set[tuple[str, int, int]] = set()
+        self._refresh_tasks: list[asyncio.Task] = []
 
     async def handle(self, request: DNSRecord, client_addr) -> DNSRecord:
         if not request.questions:
@@ -51,12 +66,14 @@ class DnsHandler:
 
         q = request.questions[0]
         qname = str(q.qname).rstrip(".").lower()
+        qclass_id = int(q.qclass)
 
         if self.metrics:
             self.metrics.inc("queries_total")
 
         qtype_id, qtype_name = self._qtype_mapping(q.qtype)
         key: tuple[str, int] = (qname, qtype_id)
+        refresh_key: tuple[str, int, int] = (qname, qtype_id, qclass_id)
 
         # 1) Fresh cache
         fresh = self.cache.get_fresh(key)
@@ -72,7 +89,8 @@ class DnsHandler:
             logger.info("CACHE HIT (stale) %s %s (refresh scheduled)", qname, qtype_name)
             if self.metrics:
                 self.metrics.inc("cache_hit_stale_total")
-            await self._schedule_refresh(key, qname, qtype_name)
+            self.enqueue_refresh(refresh_key, reason="stale_served")
+            await self._schedule_refresh(key, qname, qtype_name, refresh_key)
             return self._with_txid(request, DNSRecord.parse(stale))
 
         # 3) Cache miss => singleflight upstream resolve
@@ -102,7 +120,8 @@ class DnsHandler:
             logger.warning("SERVE STALE (late) %s %s", qname, qtype_name)
             if self.metrics:
                 self.metrics.inc("cache_hit_stale_total")
-            await self._schedule_refresh(key, qname, qtype_name)
+            self.enqueue_refresh(refresh_key, reason="stale_served")
+            await self._schedule_refresh(key, qname, qtype_name, refresh_key)
             return self._with_txid(request, DNSRecord.parse(stale2))
 
         reply = request.reply()
@@ -117,6 +136,26 @@ class DnsHandler:
         except Exception:
             qtype_name = str(qtype)  # fallback (shouldn't happen)
         return qtype_id, qtype_name
+
+    def start_refresh_tasks(self) -> list[asyncio.Task]:
+        if not self.config.refresh_enabled:
+            return []
+        if self._refresh_tasks:
+            return list(self._refresh_tasks)
+        self._refresh_tasks.append(asyncio.create_task(self._refresh_scan_loop()))
+        for i in range(self.config.refresh_concurrency):
+            self._refresh_tasks.append(asyncio.create_task(self._refresh_worker(i)))
+        return list(self._refresh_tasks)
+
+    async def stop_refresh_tasks(self) -> None:
+        if not self._refresh_tasks:
+            return
+        for task in self._refresh_tasks:
+            task.cancel()
+        for task in self._refresh_tasks:
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
+        self._refresh_tasks.clear()
 
     def _with_txid(self, request: DNSRecord, response: DNSRecord) -> DNSRecord:
         response.header.id = request.header.id
@@ -144,16 +183,135 @@ class DnsHandler:
         logger.info("UPSTREAM OK %s %s (cached)", qname, qtype_name)
         return resp
 
-    async def _schedule_refresh(self, key: tuple[str, int], qname: str, qtype_name: str) -> None:
+    def enqueue_refresh(self, key: tuple[str, int, int], reason: str) -> bool:
+        if key in self.queued_keys or key in self.inflight_keys:
+            if self.metrics:
+                self.metrics.inc("cache_refresh_dropped_total{reason=duplicate}")
+            return False
+        if self.refresh_queue.full():
+            if self.metrics:
+                self.metrics.inc("cache_refresh_dropped_total{reason=queue_full}")
+            return False
+        self.refresh_queue.put_nowait((key, reason))
+        self.queued_keys.add(key)
+        if self.metrics:
+            self.metrics.inc("cache_refresh_enqueued_total")
+        return True
+
+    async def _refresh_scan_loop(self) -> None:
+        tick_s = max(0.0, self.config.refresh_tick_ms / 1000.0)
+        try:
+            while True:
+                await asyncio.sleep(tick_s)
+                await self._refresh_scan_tick()
+        except asyncio.CancelledError:
+            raise
+
+    async def _refresh_scan_tick(self) -> None:
+        now = time.monotonic()
+        enqueued = 0
+        entries = self.cache.entries_snapshot()
+        for (qname, qtype_id), entry in entries:
+            remaining = entry.expires_at - now
+            if remaining < 0:
+                continue
+            if remaining > self.config.refresh_ahead_seconds:
+                continue
+            if entry.hits < self.config.refresh_popularity_threshold:
+                continue
+            refresh_key = (qname, qtype_id, 1)
+            if self.enqueue_refresh(refresh_key, reason="tick"):
+                enqueued += 1
+                if enqueued >= self.config.refresh_batch_size:
+                    break
+            if self.refresh_queue.full():
+                break
+
+    async def _refresh_worker(self, _worker_id: int) -> None:
+        try:
+            while True:
+                refresh_key, _reason = await self.refresh_queue.get()
+                if refresh_key in self.inflight_keys:
+                    self.queued_keys.discard(refresh_key)
+                    self.refresh_queue.task_done()
+                    continue
+                self.queued_keys.discard(refresh_key)
+                self.inflight_keys.add(refresh_key)
+                if self.metrics:
+                    self.metrics.inc("cache_refresh_started_total")
+                result = "success"
+                cancelled = False
+                try:
+                    ok = await self._refresh_via_worker(refresh_key)
+                    if not ok:
+                        result = "fail"
+                except asyncio.CancelledError:
+                    cancelled = True
+                    raise
+                except Exception:
+                    logger.exception("REFRESH WORKER ERROR %s", refresh_key)
+                    result = "fail"
+                finally:
+                    if not cancelled and self.metrics:
+                        self.metrics.inc(f"cache_refresh_completed_total{{result={result}}}")
+                    self.inflight_keys.discard(refresh_key)
+                    self.refresh_queue.task_done()
+        except asyncio.CancelledError:
+            raise
+
+    async def _schedule_refresh(
+        self,
+        key: tuple[str, int],
+        qname: str,
+        qtype_name: str,
+        refresh_key: tuple[str, int, int],
+    ) -> None:
         # Refresh is deduped too
         task, leader = await self._sf.get_or_create(
-            ("refresh", key), lambda: self._refresh_once(key, qname, qtype_name)
+            ("refresh", key),
+            lambda: self._refresh_once_tracked(key, qname, qtype_name, refresh_key),
         )
         if leader:
             if self.metrics:
                 self.metrics.inc("swr_refresh_triggered_total")
             logger.info("REFRESH START %s %s", qname, qtype_name)
             asyncio.create_task(self._watch_refresh(task, qname, qtype_name))
+
+    async def _refresh_once_tracked(
+        self,
+        key: tuple[str, int],
+        qname: str,
+        qtype_name: str,
+        refresh_key: tuple[str, int, int],
+    ) -> DNSRecord | None:
+        self.queued_keys.discard(refresh_key)
+        self.inflight_keys.add(refresh_key)
+        try:
+            return await self._refresh_once(key, qname, qtype_name)
+        finally:
+            self.inflight_keys.discard(refresh_key)
+
+    async def _refresh_via_worker(self, refresh_key: tuple[str, int, int]) -> bool:
+        qname, qtype_id, _qclass_id = refresh_key
+        cache_key = (qname, qtype_id)
+        entry = self.cache.peek(cache_key)
+        if entry is None:
+            return False
+        if time.monotonic() > entry.expires_at:
+            return False
+        try:
+            qtype_name = QTYPE[qtype_id]
+        except Exception:
+            qtype_name = str(qtype_id)
+        try:
+            request = DNSRecord.question(qname, qtype_name)
+        except Exception:
+            return False
+        task, _leader = await self._sf.get_or_create(
+            cache_key, lambda: self._resolve_upstream(request, cache_key, qname, qtype_name)
+        )
+        resp = await task
+        return resp is not None
 
     async def _refresh_once(
         self, key: tuple[str, int], qname: str, qtype_name: str

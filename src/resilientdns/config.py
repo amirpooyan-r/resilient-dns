@@ -35,6 +35,13 @@ class Config:
     relay_max_request_bytes: int = 65536
     relay_per_item_max_wire_bytes: int = 4096
     relay_max_response_bytes: int = 262144
+    refresh_enabled: bool = False
+    refresh_ahead_seconds: int = 30
+    refresh_popularity_threshold: int = 5
+    refresh_tick_ms: int = 500
+    refresh_batch_size: int = 50
+    refresh_concurrency: int = 5
+    refresh_queue_max: int = 1024
 
 
 def build_config(args: argparse.Namespace) -> Config:
@@ -59,6 +66,13 @@ def build_config(args: argparse.Namespace) -> Config:
         relay_max_request_bytes=args.relay_max_request_bytes,
         relay_per_item_max_wire_bytes=args.relay_per_item_max_wire_bytes,
         relay_max_response_bytes=args.relay_max_response_bytes,
+        refresh_enabled=args.refresh_enabled,
+        refresh_ahead_seconds=args.refresh_ahead_seconds,
+        refresh_popularity_threshold=args.refresh_popularity_threshold,
+        refresh_tick_ms=args.refresh_tick_ms,
+        refresh_batch_size=args.refresh_batch_size,
+        refresh_concurrency=args.refresh_concurrency,
+        refresh_queue_max=args.refresh_queue_max,
     )
 
 
@@ -88,6 +102,18 @@ def validate_config(cfg: Config) -> None:
         raise ValueError("negative_ttl_s must be >= 0")
     if cfg.cache_max_entries < 0:
         raise ValueError("cache_max_entries must be >= 0")
+    if cfg.refresh_ahead_seconds < 0:
+        raise ValueError("refresh_ahead_seconds must be >= 0")
+    if cfg.refresh_popularity_threshold < 0:
+        raise ValueError("refresh_popularity_threshold must be >= 0")
+    if cfg.refresh_tick_ms <= 0:
+        raise ValueError("refresh_tick_ms must be > 0")
+    if cfg.refresh_batch_size <= 0:
+        raise ValueError("refresh_batch_size must be > 0")
+    if cfg.refresh_concurrency < 0:
+        raise ValueError("refresh_concurrency must be >= 0")
+    if cfg.refresh_queue_max < 0:
+        raise ValueError("refresh_queue_max must be >= 0")
 
     if cfg.max_inflight < 1:
         raise ValueError("max_inflight must be >= 1")

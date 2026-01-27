@@ -27,6 +27,13 @@ def _args() -> argparse.Namespace:
         relay_max_request_bytes=65536,
         relay_per_item_max_wire_bytes=4096,
         relay_max_response_bytes=262144,
+        refresh_enabled=False,
+        refresh_ahead_seconds=30,
+        refresh_popularity_threshold=5,
+        refresh_tick_ms=500,
+        refresh_batch_size=50,
+        refresh_concurrency=5,
+        refresh_queue_max=1024,
     )
 
 

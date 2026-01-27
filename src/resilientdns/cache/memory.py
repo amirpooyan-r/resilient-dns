@@ -24,6 +24,7 @@ class CacheEntry:
     expires_at: float
     stale_until: float
     rcode: int
+    hits: int = 0
 
 
 CacheKey: TypeAlias = tuple[str, int]
@@ -46,6 +47,7 @@ class MemoryDnsCache:
             return None
         now = time.monotonic()
         if now <= e.expires_at:
+            e.hits += 1
             self._count_negative(e)
             self._touch(key)
             return e.response_wire
@@ -57,10 +59,17 @@ class MemoryDnsCache:
             return None
         now = time.monotonic()
         if e.expires_at < now <= e.stale_until:
+            e.hits += 1
             self._count_negative(e)
             self._touch(key)
             return e.response_wire
         return None
+
+    def peek(self, key: CacheKey) -> CacheEntry | None:
+        return self._store.get(key)
+
+    def entries_snapshot(self) -> list[tuple[CacheKey, CacheEntry]]:
+        return list(self._store.items())
 
     def put(self, key: CacheKey, response: DNSRecord) -> None:
         now = time.monotonic()
