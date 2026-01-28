@@ -1,6 +1,6 @@
 [project]
 name = "resilientdns"
-version = "0.12.0"
+version = "0.12.1"
 description = "Resilient DNS cache and forwarder designed for unreliable and high-latency networks"
 authors = [{ name = "Amirpooyan Raeessi" }]
 license = { text = "Apache-2.0" }
