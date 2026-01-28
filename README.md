@@ -87,6 +87,8 @@ resilientdns \
   --refresh-queue-max 1024
 ```
 
+Note: refresh requires at least one worker (`--refresh-concurrency >= 1`) when enabled.
+
 ### Warmup List (v0.11.0)
 
 Warmup is a best-effort startup preload of refresh jobs from a text file.
@@ -109,6 +111,8 @@ resilientdns \
   --refresh-warmup-file ./warmup.txt \
   --refresh-warmup-limit 200
 ```
+
+Note: warmup requires refresh to be enabled (`--refresh-enabled`), because warmup jobs are executed by refresh workers.
 
 ## Operational Profiles (v0.12.0)
 

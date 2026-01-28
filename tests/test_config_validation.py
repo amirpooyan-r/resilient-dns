@@ -76,7 +76,25 @@ def test_config_empty_upstream_host():
 
 def test_warmup_requires_file_when_enabled():
     args = _args()
+    args.refresh_enabled = True
     args.refresh_warmup_enabled = True
     args.refresh_warmup_file = None
     with pytest.raises(ValueError, match="refresh_warmup_file"):
+        validate_config(build_config(args))
+
+
+def test_warmup_requires_refresh_enabled():
+    args = _args()
+    args.refresh_warmup_enabled = True
+    args.refresh_warmup_file = "./warmup.txt"
+    args.refresh_enabled = False
+    with pytest.raises(ValueError, match="Warmup requires refresh_enabled=true"):
+        validate_config(build_config(args))
+
+
+def test_refresh_requires_positive_concurrency():
+    args = _args()
+    args.refresh_enabled = True
+    args.refresh_concurrency = 0
+    with pytest.raises(ValueError, match="refresh_concurrency must be >= 1"):
         validate_config(build_config(args))

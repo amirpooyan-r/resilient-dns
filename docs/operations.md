@@ -41,6 +41,8 @@ known-good launch commands.
   traffic and want steadier cache freshness: `--refresh-enabled`.
 - Safe starter knobs: `--refresh-ahead-seconds 30`,
   `--refresh-popularity-threshold 5`, `--refresh-batch-size 50`.
+- Refresh requires at least one worker when enabled:
+  `--refresh-concurrency >= 1`.
 - Warmup is best-effort and bounded; it only does work if refresh is enabled.
   Use a small file and a modest limit:
   `--refresh-warmup-enabled --refresh-warmup-file ./warmup.txt --refresh-warmup-limit 200`.

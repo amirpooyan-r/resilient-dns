@@ -120,10 +120,17 @@ def validate_config(cfg: Config) -> None:
         raise ValueError("refresh_tick_ms must be > 0")
     if cfg.refresh_batch_size <= 0:
         raise ValueError("refresh_batch_size must be > 0")
+    if cfg.refresh_enabled and cfg.refresh_concurrency <= 0:
+        raise ValueError("refresh_concurrency must be >= 1 when refresh is enabled")
     if cfg.refresh_concurrency < 0:
         raise ValueError("refresh_concurrency must be >= 0")
     if cfg.refresh_queue_max < 0:
         raise ValueError("refresh_queue_max must be >= 0")
+    if cfg.refresh_warmup_enabled and not cfg.refresh_enabled:
+        raise ValueError(
+            "Warmup requires refresh_enabled=true because warmup jobs are executed "
+            "by refresh workers."
+        )
     if cfg.refresh_warmup_enabled and not cfg.refresh_warmup_file:
         raise ValueError("refresh_warmup_file is required when warmup is enabled")
     if cfg.refresh_warmup_enabled and cfg.refresh_warmup_limit <= 0:
