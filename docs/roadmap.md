@@ -19,7 +19,7 @@ Legend:
 - ✅ Stale-while-revalidate (SWR)
 - ✅ Single-flight cache miss deduplication
 - ✅ Strict upstream timeout enforcement
-- ⬜ Cache warm-up / preload (static domain list)
+- ✅ Cache warm-up / preload (static domain list)
 - ⬜ Cache namespace isolation (per-view or subnet)
 
 ## Upstream & Relay Support
@@ -27,9 +27,9 @@ Legend:
 - ✅ Explicit UDP or TCP upstream selection
 - ✅ Deterministic upstream concurrency limits (fail-fast)
 - ✅ TCP upstream connection pooling with idle eviction
-- ⬜ Relay client (HTTP batch DNS)
-- ⬜ Relay startup validation (/v1/info)
-- ⬜ Relay limits compatibility checks
+- ✅ Relay client (HTTP batch DNS)
+- ✅ Relay startup validation (/v1/info)
+- ✅ Relay limits compatibility checks
 - ⬜ Multi-relay support (explicit policy, no auto-fallback)
 
 ## Observability & Diagnostics
@@ -37,7 +37,7 @@ Legend:
 - ✅ Prometheus-style metrics endpoint
 - ✅ Clear drop vs error metric semantics
 - ✅ Health check endpoint (/healthz)
-- ⬜ Readiness endpoint (/readyz)
+- ✅ Readiness endpoint (/readyz)
 - ⬜ Startup configuration sanity report
 - ⬜ Diagnostics bundle export (config + counters)
 
@@ -56,7 +56,7 @@ users.
 
 - ✅ Deterministic pytest suite
 - ✅ Network failure pattern tests
-- ⬜ Fake Relay test server
+- ✅ Fake Relay test server
 - ⬜ Relay protocol compliance test tool
 - ⬜ Relay benchmarking tool
 

@@ -2,7 +2,7 @@
 
 ResilientDNS is an open-source DNS cache and forwarder optimized for **unreliable, high-latency, and low-quality networks**.
 
-It accepts standard DNS (UDP/TCP) from LAN devices and forwards misses through a **batched HTTPS relay** designed to work reliably without depending on HTTP/2.
+It accepts standard DNS (UDP/TCP) from LAN devices and forwards misses through an explicitly selected upstream transport (direct UDP/TCP or a **batched HTTPS relay**).
 
 ## What problem does it solve?
 
@@ -17,21 +17,22 @@ ResilientDNS focuses on correctness and resilience while minimizing upstream HTT
 
 ## Implemented
 
-- UDP DNS listener
+- UDP/TCP DNS listeners
 - TTL-aware caching (positive + negative)
 - Bounded cache eviction (expired-first, then LRU)
 - Serve-stale behavior for resilience
 - Stale-while-revalidate (SWR)
 - SingleFlight deduplication
 - Batch refresh (hybrid TTL + popularity gate)
-- Lightweight in-process metrics counters
+- Warmup list (startup preload)
+- Explicit UDP/TCP/Relay upstream selection
+- Relay upstream transport (HTTP batch DNS)
+- Relay startup check (/v1/info) and limits compatibility checks
+- Metrics endpoint (/metrics, /healthz, /readyz, /cache/stats)
 
 ## Planned
 
 - Adaptive, budgeted prefetch for hot domains
-- Upstream request batching via HTTP/1.1-friendly relay
-- TCP support + truncation handling
-- Metrics endpoint
 
 ## Status
 

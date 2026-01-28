@@ -13,8 +13,9 @@ For now, see the project README for the high-level diagram.
 ```mermaid
 flowchart LR
   A[LAN Devices] --> B[ResilientDNS]
+  B -->|UDP/TCP| D[Upstream Resolver]
   B -->|HTTPS batch| C[Remote Relay]
-  C -->|DoH| D[Upstream Resolver]
+  C -->|DoH| D
 ```
 
 ## Cache

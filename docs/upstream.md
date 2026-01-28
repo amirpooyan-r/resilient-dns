@@ -20,6 +20,12 @@ The choice is deterministic and never inferred automatically.
 - Works in networks where UDP is filtered
 - Uses RFC 7766 DNS-over-TCP framing
 
+### Relay
+
+- HTTPS batch transport (HTTP/1.1 friendly)
+- Designed for unreliable or high-latency links
+- Requires explicit Relay configuration and startup check (optional)
+
 ## Selecting the upstream transport
 
 ```bash
@@ -29,18 +35,27 @@ resilientdns \
   --upstream-port 53
 ```
 
-Supported values are `udp` and `tcp`.
+Supported values are `udp`, `tcp`, and `relay`.
 
 For safety, the default bind address is `127.0.0.1`.
 
-## Relay Upstream (Planned)
+## Relay Upstream
 
-ResilientDNS will support a relay upstream using a stateless JSON batch API.
+Relay upstream uses a stateless JSON batch API. It is always explicit and never
+selected automatically.
+
+```bash
+resilientdns \
+  --upstream-transport relay \
+  --relay-base-url https://relay.example.test \
+  --relay-api-version 1
+```
+
 See `docs/relay.md` for the protocol specification and endpoint conventions.
 
 ## Failure Semantics
 
-UDP and TCP upstream share identical resolver behavior:
+All upstream transports share identical resolver behavior:
 
 - Strict timeouts
 - No retries or fallback loops
