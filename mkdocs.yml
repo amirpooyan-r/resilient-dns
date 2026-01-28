@@ -33,6 +33,7 @@ nav:
   - Home: index.md
   - Architecture: architecture.md
   - Operational Profiles: profiles.md
+  - Operations: operations.md
   - Upstream Transport: upstream.md
   - Relay Spec: relay.md
   - Observability: observability.md

@@ -32,7 +32,7 @@ things worse on slow links.
 
 ResilientDNS is designed to:
 
-- Accept **standard DNS** queries from LAN devices (UDP today; TCP planned)
+- Accept **standard DNS** queries from LAN devices (UDP/TCP)
 - Provide a **smart local DNS cache**
   - TTL-aware positive caching
   - Negative caching (NXDOMAIN / NODATA)
@@ -40,7 +40,7 @@ ResilientDNS is designed to:
 - Reduce upstream dependency using:
   - Controlled, budgeted prefetch
   - Request deduplication
-  - Batched upstream resolution
+  - Batched upstream resolution (Relay transport)
 - Work reliably over **HTTP/1.1**
   - No hard dependency on HTTP/2
 - Remain protocol-correct and transparent to clients
@@ -215,7 +215,7 @@ LAN Devices
 v
 ResilientDNS (Python)
 |
-| HTTPS (batched, HTTP/1.1 friendly)
+| HTTPS (batched via Relay transport, HTTP/1.1 friendly)
 v
 Remote Relay
 |
@@ -225,7 +225,7 @@ Upstream DNS Resolver
 ```
 
 - LAN devices remain completely unaware of DoH
-- Upstream communication is controlled, batched, and minimized
+- Upstream communication is controlled and minimized; batching applies only to Relay transport
 - Serve-stale behavior allows continued operation during outages
 
 ---
