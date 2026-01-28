@@ -110,6 +110,21 @@ resilientdns \
   --refresh-warmup-limit 200
 ```
 
+## Operational Profiles (v0.12.0)
+
+For recommended settings and rationale, see `docs/profiles.md`.
+
+```bash
+# Conservative / Home
+resilientdns --listen-host 0.0.0.0 --listen-port 53 --upstream-transport udp --upstream-timeout 2.0 --max-inflight 128
+
+# High-throughput / Lab
+resilientdns --listen-host 0.0.0.0 --listen-port 5353 --upstream-transport udp --upstream-timeout 1.5 --max-inflight 1024 --refresh-enabled
+
+# Relay-heavy
+resilientdns --listen-host 0.0.0.0 --listen-port 53 --upstream-transport relay --relay-base-url https://relay.example.test --upstream-timeout 4.0 --max-inflight 256
+```
+
 ## Upstream behavior
 
 - Supports UDP and TCP upstream forwarding (explicit selection, no guessing)
